@@ -48,7 +48,7 @@ const updateTipoProblema = async (req, res) => {
 // Borrado lógico (desactivar tipo de problema)
 const deleteTipoProblema = async (req, res) => {
     const { id } = req.params;
-    const { usuario_modifica } = req.body; // opcional, para registrar quién desactiva
+    const { usuario_modifica } = req.body; //Aqui maneje quien 
   
     try {
       const result = await pool.query(
