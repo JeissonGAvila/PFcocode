@@ -48,7 +48,7 @@ try {
   console.log('❌ Error en reportes:', error.message);
 }
 
-// 4. NUEVO: Líderes COCODE
+// 4. Líderes COCODE (existe)
 try {
   const lideresRoutes = require('./routes/admin/lideresRoutes');
   app.use('/api/admin/lideres', lideresRoutes);
@@ -57,7 +57,16 @@ try {
   console.log('❌ Error en líderes:', error.message);
 }
 
-// 5. Tipos problema (existe)
+// 5. NUEVO: Ciudadanos
+try {
+  const ciudadanosRoutes = require('./routes/admin/ciudadanosRoutes');
+  app.use('/api/admin/ciudadanos', ciudadanosRoutes);
+  console.log('✅ Ciudadanos routes cargadas');
+} catch (error) {
+  console.log('❌ Error en ciudadanos:', error.message);
+}
+
+// 6. Tipos problema (existe)
 try {
   const tiposProblemaRoutes = require('./routes/tiposProblemaRoutes');
   app.use('/api/tipos-problema', tiposProblemaRoutes);
@@ -66,7 +75,7 @@ try {
   console.log('❌ Error en tipos problema:', error.message);
 }
 
-// 6. Zonas (existe)
+// 7. Zonas (existe)
 try {
   const zonasRoutes = require('./routes/zonasRoutes');
   app.use('/api/zonas', zonasRoutes);
@@ -94,7 +103,8 @@ app.listen(PORT, () => {
   console.log('   - /api/auth/*');
   console.log('   - /api/admin/tecnicos/*');
   console.log('   - /api/admin/reportes/*');
-  console.log('   - /api/admin/lideres/*  ← NUEVA');
+  console.log('   - /api/admin/lideres/*');
+  console.log('   - /api/admin/ciudadanos/*  ← NUEVA');
   console.log('   - /api/tipos-problema/*');
   console.log('   - /api/zonas/*');
   console.log('✅ SERVIDOR FUNCIONANDO');
