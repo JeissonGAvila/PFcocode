@@ -1,5 +1,5 @@
-// frontend/src/vistas/administrador/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
+// frontend/src/vistas/administrador/Dashboard.jsx - Actualizado con navegación
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -7,306 +7,320 @@ import {
   Card,
   CardContent,
   Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Chip,
   Paper,
-  Divider
+  Tabs,
+  Tab,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Menu,
+  MenuItem
 } from '@mui/material';
+
 import {
   Dashboard as DashboardIcon,
-  Assignment as ReporteIcon,
   People as PeopleIcon,
+  Engineering as EngineeringIcon,
+  Report as ReporteIcon,
   Settings as SettingsIcon,
   TrendingUp as TrendingIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  Schedule as ScheduleIcon
+  AccountCircle as AccountIcon,
+  ExitToApp as LogoutIcon
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import LogoutButton from '../../components/common/LogoutButton.jsx';
+
+// Importar componentes
+import GestionTecnicos from '../../components/admin/GestionTecnicos';
 
 const DashboardAdmin = () => {
-  const { user } = useAuth();
-  const [stats, setStats] = useState({
+  // 🎛️ ESTADOS
+  const [tabActual, setTabActual] = useState(0);
+  const [menuUser, setMenuUser] = useState(null);
+
+  // 📊 DATOS DE ESTADÍSTICAS (simulados por ahora)
+  const estadisticas = {
     totalReportes: 156,
     reportesPendientes: 23,
-    reportesEnProceso: 31,
-    reportesResueltos: 102,
     tecnicosActivos: 8,
-    ciudadanosRegistrados: 1247
-  });
-
-  // Datos simulados - después conectaremos con la API
-  const reportesCriticos = [
-    { id: 1, titulo: 'Falta de agua en Zona 3', tipo: 'Agua Potable', prioridad: 'Alta' },
-    { id: 2, titulo: 'Poste caído en 5ta Avenida', tipo: 'Energía Eléctrica', prioridad: 'Alta' },
-    { id: 3, titulo: 'Drenaje tapado Centro', tipo: 'Drenajes', prioridad: 'Media' }
-  ];
-
-  const tecnicosResumen = [
-    { nombre: 'Carlos López', departamento: 'Energía Eléctrica', reportes: 8, estado: 'Ocupado' },
-    { nombre: 'Ana Morales', departamento: 'Agua Potable', reportes: 5, estado: 'Disponible' },
-    { nombre: 'Pedro García', departamento: 'Drenajes', reportes: 12, estado: 'Ocupado' }
-  ];
-
-  const getPrioridadColor = (prioridad) => {
-    switch (prioridad) {
-      case 'Alta': return 'error';
-      case 'Media': return 'warning';
-      case 'Baja': return 'success';
-      default: return 'default';
-    }
+    reportesResueltos: 133
   };
 
-  const getEstadoColor = (estado) => {
-    switch (estado) {
-      case 'Disponible': return 'success';
-      case 'Ocupado': return 'warning';
-      case 'No Disponible': return 'error';
-      default: return 'default';
+  // 🎯 MANEJAR CAMBIO DE TABS
+  const handleTabChange = (event, newValue) => {
+    setTabActual(newValue);
+  };
+
+  // 👤 MANEJAR MENÚ DE USUARIO
+  const handleUserMenu = (event) => {
+    setMenuUser(event.currentTarget);
+  };
+
+  const handleCloseUserMenu = () => {
+    setMenuUser(null);
+  };
+
+  // 🚪 LOGOUT (placeholder)
+  const handleLogout = () => {
+    // TODO: Implementar logout real
+    console.log('Logout');
+    setMenuUser(null);
+  };
+
+  // 🎨 RENDERIZAR CONTENIDO SEGÚN TAB ACTIVO
+  const renderTabContent = () => {
+    switch (tabActual) {
+      case 0: // Dashboard Principal
+        return (
+          <Box>
+            {/* 📊 ESTADÍSTICAS PRINCIPALES */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="h4" component="div">
+                          {estadisticas.totalReportes}
+                        </Typography>
+                        <Typography variant="body2">
+                          Total de Reportes
+                        </Typography>
+                      </Box>
+                      <ReporteIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ bgcolor: 'warning.main', color: 'white' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="h4" component="div">
+                          {estadisticas.reportesPendientes}
+                        </Typography>
+                        <Typography variant="body2">
+                          Pendientes
+                        </Typography>
+                      </Box>
+                      <DashboardIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ bgcolor: 'success.main', color: 'white' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="h4" component="div">
+                          {estadisticas.tecnicosActivos}
+                        </Typography>
+                        <Typography variant="body2">
+                          Técnicos Activos
+                        </Typography>
+                      </Box>
+                      <EngineeringIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <Card sx={{ bgcolor: 'info.main', color: 'white' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Box>
+                        <Typography variant="h4" component="div">
+                          {estadisticas.reportesResueltos}
+                        </Typography>
+                        <Typography variant="body2">
+                          Resueltos
+                        </Typography>
+                      </Box>
+                      <TrendingIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* 🚀 ACCIONES RÁPIDAS */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  🚀 Acciones Rápidas
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<ReporteIcon />}
+                      size="large"
+                      sx={{ py: 2 }}
+                      onClick={() => setTabActual(2)}
+                    >
+                      Gestión de Reportes
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<EngineeringIcon />}
+                      size="large"
+                      sx={{ py: 2 }}
+                      onClick={() => setTabActual(1)}
+                    >
+                      Gestión de Técnicos
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<PeopleIcon />}
+                      size="large"
+                      sx={{ py: 2 }}
+                    >
+                      Gestión de Usuarios
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<SettingsIcon />}
+                      size="large"
+                      sx={{ py: 2 }}
+                      onClick={() => setTabActual(3)}
+                    >
+                      Configuraciones
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* 📝 INFO DEL ADMINISTRADOR */}
+            <Box mt={4} p={2} bgcolor="grey.100" borderRadius={1}>
+              <Typography variant="body2" color="textSecondary" textAlign="center">
+                👑 <strong>Permisos de Administrador:</strong> Control total del sistema | 
+                Gestión completa de usuarios | Asignación de reportes | 
+                Acceso a todas las configuraciones y estadísticas
+              </Typography>
+            </Box>
+          </Box>
+        );
+
+      case 1: // Gestión de Técnicos
+        return <GestionTecnicos />;
+
+      case 2: // Gestión de Reportes
+        return (
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              🚧 Gestión de Reportes
+            </Typography>
+            <Typography variant="body1">
+              Este módulo estará disponible próximamente...
+            </Typography>
+          </Box>
+        );
+
+      case 3: // Configuraciones
+        return (
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              🚧 Configuraciones del Sistema
+            </Typography>
+            <Typography variant="body1">
+              Este módulo estará disponible próximamente...
+            </Typography>
+          </Box>
+        );
+
+      default:
+        return null;
     }
   };
 
   return (
-    <Box>
-      {/* Header del Panel Admin */}
-      <Box 
-        bgcolor="primary.main" 
-        color="white" 
-        p={3}
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
+    <Box sx={{ flexGrow: 1 }}>
+      {/* 🎯 BARRA DE NAVEGACIÓN SUPERIOR */}
+      <AppBar position="static" elevation={1}>
+        <Toolbar>
+          <DashboardIcon sx={{ mr: 2 }} />
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Panel de Administración - COCODE Huehuetenango
+          </Typography>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ mr: 1 }}>
+              Administrador
+            </Typography>
+            <IconButton
+              size="large"
+              onClick={handleUserMenu}
+              color="inherit"
+            >
+              <AccountIcon />
+            </IconButton>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      {/* 👤 MENÚ DE USUARIO */}
+      <Menu
+        anchorEl={menuUser}
+        open={Boolean(menuUser)}
+        onClose={handleCloseUserMenu}
       >
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            🔧 Panel Administrador
-          </Typography>
-          <Typography variant="h6">
-            Bienvenido, {user?.nombre}
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Control total del sistema municipal | {user?.correo}
-          </Typography>
-        </Box>
-        
-        <LogoutButton variant="text" />
-      </Box>
+        <MenuItem onClick={handleCloseUserMenu}>
+          <AccountIcon sx={{ mr: 1 }} /> Mi Perfil
+        </MenuItem>
+        <MenuItem onClick={handleLogout}>
+          <LogoutIcon sx={{ mr: 1 }} /> Cerrar Sesión
+        </MenuItem>
+      </Menu>
 
-      {/* Contenido Principal */}
-      <Box p={3}>
-        {/* Estadísticas Generales */}
-        <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <TrendingIcon /> Estadísticas Generales
-        </Typography>
-        
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ReporteIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="primary">
-                  {stats.totalReportes}
-                </Typography>
-                <Typography color="textSecondary">
-                  Total Reportes
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+      {/* 📋 TABS DE NAVEGACIÓN */}
+      <Paper square>
+        <Tabs
+          value={tabActual}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="fullWidth"
+        >
+          <Tab 
+            icon={<DashboardIcon />} 
+            label="Dashboard" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<EngineeringIcon />} 
+            label="Técnicos" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<ReporteIcon />} 
+            label="Reportes" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<SettingsIcon />} 
+            label="Configuraciones" 
+            iconPosition="start"
+          />
+        </Tabs>
+      </Paper>
 
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="warning.main">
-                  {stats.reportesPendientes}
-                </Typography>
-                <Typography color="textSecondary">
-                  Pendientes
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <WarningIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="error.main">
-                  {stats.reportesEnProceso}
-                </Typography>
-                <Typography color="textSecondary">
-                  En Proceso
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="success.main">
-                  {stats.reportesResueltos}
-                </Typography>
-                <Typography color="textSecondary">
-                  Resueltos
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* Contenido en Dos Columnas */}
-        <Grid container spacing={3}>
-          {/* Columna Izquierda - Reportes Críticos */}
-          <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <WarningIcon color="error" /> Reportes Críticos
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <List>
-                {reportesCriticos.map((reporte) => (
-                  <ListItem key={reporte.id} divider>
-                    <ListItemIcon>
-                      <ReporteIcon color="action" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={reporte.titulo}
-                      secondary={`Tipo: ${reporte.tipo}`}
-                    />
-                    <Chip 
-                      label={reporte.prioridad}
-                      color={getPrioridadColor(reporte.prioridad)}
-                      size="small"
-                    />
-                  </ListItem>
-                ))}
-              </List>
-              
-              <Button 
-                fullWidth 
-                variant="contained" 
-                color="primary"
-                sx={{ mt: 2 }}
-              >
-                Ver Todos los Reportes
-              </Button>
-            </Paper>
-          </Grid>
-
-          {/* Columna Derecha - Estado de Técnicos */}
-          <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PeopleIcon color="primary" /> Estado de Técnicos
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <List>
-                {tecnicosResumen.map((tecnico, index) => (
-                  <ListItem key={index} divider>
-                    <ListItemText
-                      primary={tecnico.nombre}
-                      secondary={
-                        <Box>
-                          <Typography variant="body2">
-                            Departamento: {tecnico.departamento}
-                          </Typography>
-                          <Typography variant="body2">
-                            Reportes asignados: {tecnico.reportes}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <Chip 
-                      label={tecnico.estado}
-                      color={getEstadoColor(tecnico.estado)}
-                      size="small"
-                    />
-                  </ListItem>
-                ))}
-              </List>
-              
-              <Button 
-                fullWidth 
-                variant="contained" 
-                color="secondary"
-                sx={{ mt: 2 }}
-              >
-                Gestionar Técnicos
-              </Button>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        {/* Acciones Rápidas */}
-        <Box mt={4}>
-          <Typography variant="h6" gutterBottom>
-            🚀 Acciones Rápidas
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                startIcon={<ReporteIcon />}
-                size="large"
-                sx={{ py: 2 }}
-              >
-                Gestión de Reportes
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                startIcon={<PeopleIcon />}
-                size="large"
-                sx={{ py: 2 }}
-              >
-                Gestión de Usuarios
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                startIcon={<SettingsIcon />}
-                size="large"
-                sx={{ py: 2 }}
-              >
-                Configuraciones
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button 
-                fullWidth 
-                variant="outlined" 
-                startIcon={<TrendingIcon />}
-                size="large"
-                sx={{ py: 2 }}
-              >
-                Reportes y Estadísticas
-              </Button>
-            </Grid>
-          </Grid>
-        </Box>
-
-        {/* Footer Info */}
-        <Box mt={4} p={2} bgcolor="grey.100" borderRadius={1}>
-          <Typography variant="body2" color="textSecondary" textAlign="center">
-            👑 <strong>Permisos de Administrador:</strong> Control total del sistema | 
-            Gestión completa de usuarios | Asignación de reportes | 
-            Acceso a todas las configuraciones y estadísticas
-          </Typography>
-        </Box>
+      {/* 📄 CONTENIDO PRINCIPAL */}
+      <Box sx={{ p: 3 }}>
+        {renderTabContent()}
       </Box>
     </Box>
   );
