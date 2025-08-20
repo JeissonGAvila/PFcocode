@@ -39,6 +39,7 @@ import GestionReportes from '../../components/admin/GestionReportes.jsx';
 import GestionCiudadanos from '../../components/admin/GestionCiudadanos.jsx';
 import GestionLideres from '../../components/admin/GestionLideres.jsx';
 import GestionAdministradores from '../../components/admin/GestionAdministradores.jsx';
+import GestionZonas from '../../components/admin/GestionZonas.jsx';
 
 const DashboardAdmin = () => {
   const { user } = useAuth();
@@ -457,59 +458,9 @@ const DashboardAdmin = () => {
               <GestionCiudadanos />
             )}
             
-            {/* Sub-Tab 4: Zonas */}
+            {/* Sub-Tab 4: Zonas - COMPONENTE FUNCIONAL INTEGRADO */}
             {userTabValue === 4 && (
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <LocationIcon /> Gestión de Zonas
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                  Administrar zonas geográficas y división territorial
-                </Typography>
-                
-                {/* Estadísticas de zonas */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="primary">{stats.zonasActivas}</Typography>
-                        <Typography variant="body2">Zonas Totales</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="success.main">{stats.ciudadanosRegistrados}</Typography>
-                        <Typography variant="body2">Ciudadanos</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="warning.main">{stats.totalReportes}</Typography>
-                        <Typography variant="body2">Reportes Activos</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="info.main">8</Typography>
-                        <Typography variant="body2">Sub-COCODE</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-                
-                <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', py: 4 }}>
-                  <strong>Próximamente:</strong> Componente GestionZonas.jsx
-                </Typography>
-                <Button variant="outlined" fullWidth disabled>
-                  En desarrollo
-                </Button>
-              </Paper>
+              <GestionZonas />
             )}
           </Box>
         )}

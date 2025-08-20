@@ -75,7 +75,16 @@ try {
   console.log('❌ Error en ciudadanos:', error.message);
 }
 
-// 7. Tipos problema (existe)
+// 7. NUEVO: Zonas Admin (gestión completa)
+try {
+  const zonasAdminRoutes = require('./routes/admin/zonasRoutes');
+  app.use('/api/admin/zonas', zonasAdminRoutes);
+  console.log('✅ Zonas Admin routes cargadas');
+} catch (error) {
+  console.log('❌ Error en zonas admin:', error.message);
+}
+
+// 8. Tipos problema (existe)
 try {
   const tiposProblemaRoutes = require('./routes/tiposProblemaRoutes');
   app.use('/api/tipos-problema', tiposProblemaRoutes);
@@ -84,7 +93,7 @@ try {
   console.log('❌ Error en tipos problema:', error.message);
 }
 
-// 8. Zonas (existe)
+// 9. Zonas (existe - ruta original)
 try {
   const zonasRoutes = require('./routes/zonasRoutes');
   app.use('/api/zonas', zonasRoutes);
@@ -110,12 +119,13 @@ app.listen(PORT, () => {
   console.log(`🌐 Prueba: http://localhost:${PORT}/api/test`);
   console.log('📋 Rutas disponibles:');
   console.log('   - /api/auth/*');
-  console.log('   - /api/admin/administradores/*  ← NUEVA');
+  console.log('   - /api/admin/administradores/*');
   console.log('   - /api/admin/tecnicos/*');
   console.log('   - /api/admin/reportes/*');
   console.log('   - /api/admin/lideres/*');
   console.log('   - /api/admin/ciudadanos/*');
+  console.log('   - /api/admin/zonas/*  ← NUEVA GESTIÓN COMPLETA');
   console.log('   - /api/tipos-problema/*');
-  console.log('   - /api/zonas/*');
+  console.log('   - /api/zonas/*  ← ORIGINAL');
   console.log('✅ SERVIDOR FUNCIONANDO');
 });
