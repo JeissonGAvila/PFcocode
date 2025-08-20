@@ -30,7 +30,16 @@ try {
   console.log('❌ Error en auth:', error.message);
 }
 
-// 2. Técnicos (existe)
+// 2. NUEVO: Administradores
+try {
+  const administradoresRoutes = require('./routes/admin/administradoresRoutes');
+  app.use('/api/admin/administradores', administradoresRoutes);
+  console.log('✅ Administradores routes cargadas');
+} catch (error) {
+  console.log('❌ Error en administradores:', error.message);
+}
+
+// 3. Técnicos (existe)
 try {
   const tecnicosRoutes = require('./routes/admin/tecnicosRoutes');
   app.use('/api/admin/tecnicos', tecnicosRoutes);
@@ -39,7 +48,7 @@ try {
   console.log('❌ Error en técnicos:', error.message);
 }
 
-// 3. Reportes (existe)
+// 4. Reportes (existe)
 try {
   const reportesRoutes = require('./routes/admin/reportesRoutes');
   app.use('/api/admin/reportes', reportesRoutes);
@@ -48,7 +57,7 @@ try {
   console.log('❌ Error en reportes:', error.message);
 }
 
-// 4. Líderes COCODE (existe)
+// 5. Líderes COCODE (existe)
 try {
   const lideresRoutes = require('./routes/admin/lideresRoutes');
   app.use('/api/admin/lideres', lideresRoutes);
@@ -57,7 +66,7 @@ try {
   console.log('❌ Error en líderes:', error.message);
 }
 
-// 5. NUEVO: Ciudadanos
+// 6. Ciudadanos (existe)
 try {
   const ciudadanosRoutes = require('./routes/admin/ciudadanosRoutes');
   app.use('/api/admin/ciudadanos', ciudadanosRoutes);
@@ -66,7 +75,7 @@ try {
   console.log('❌ Error en ciudadanos:', error.message);
 }
 
-// 6. Tipos problema (existe)
+// 7. Tipos problema (existe)
 try {
   const tiposProblemaRoutes = require('./routes/tiposProblemaRoutes');
   app.use('/api/tipos-problema', tiposProblemaRoutes);
@@ -75,7 +84,7 @@ try {
   console.log('❌ Error en tipos problema:', error.message);
 }
 
-// 7. Zonas (existe)
+// 8. Zonas (existe)
 try {
   const zonasRoutes = require('./routes/zonasRoutes');
   app.use('/api/zonas', zonasRoutes);
@@ -101,10 +110,11 @@ app.listen(PORT, () => {
   console.log(`🌐 Prueba: http://localhost:${PORT}/api/test`);
   console.log('📋 Rutas disponibles:');
   console.log('   - /api/auth/*');
+  console.log('   - /api/admin/administradores/*  ← NUEVA');
   console.log('   - /api/admin/tecnicos/*');
   console.log('   - /api/admin/reportes/*');
   console.log('   - /api/admin/lideres/*');
-  console.log('   - /api/admin/ciudadanos/*  ← NUEVA');
+  console.log('   - /api/admin/ciudadanos/*');
   console.log('   - /api/tipos-problema/*');
   console.log('   - /api/zonas/*');
   console.log('✅ SERVIDOR FUNCIONANDO');

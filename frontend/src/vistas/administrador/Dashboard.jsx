@@ -38,6 +38,7 @@ import GestionTecnicos from '../../components/admin/GestionTecnicos.jsx';
 import GestionReportes from '../../components/admin/GestionReportes.jsx';
 import GestionCiudadanos from '../../components/admin/GestionCiudadanos.jsx';
 import GestionLideres from '../../components/admin/GestionLideres.jsx';
+import GestionAdministradores from '../../components/admin/GestionAdministradores.jsx';
 
 const DashboardAdmin = () => {
   const { user } = useAuth();
@@ -292,7 +293,7 @@ const DashboardAdmin = () => {
             {/* Acciones Rápidas */}
             <Box mt={4}>
               <Typography variant="h6" gutterBottom>
-                🚀 Acciones Rápidas
+                Acciones Rápidas
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3}>
@@ -358,7 +359,7 @@ const DashboardAdmin = () => {
         {tabValue === 2 && (
           <Box>
             <Typography variant="h5" gutterBottom>
-              👥 Gestión de Usuarios
+              Gestión de Usuarios
             </Typography>
             
             {/* Sub-Tabs para diferentes tipos de usuarios */}
@@ -404,59 +405,9 @@ const DashboardAdmin = () => {
 
             {/* Contenido de las Sub-Tabs */}
             
-            {/* Sub-Tab 0: Administradores */}
+            {/* Sub-Tab 0: Administradores - COMPONENTE FUNCIONAL INTEGRADO */}
             {userTabValue === 0 && (
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <AdminIcon /> Gestión de Administradores
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                  Crear, editar y gestionar cuentas de administradores del sistema
-                </Typography>
-                
-                {/* Estadísticas de administradores */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="primary">{stats.administradores}</Typography>
-                        <Typography variant="body2">Administradores</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="success.main">4</Typography>
-                        <Typography variant="body2">Activos</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="info.main">2</Typography>
-                        <Typography variant="body2">Supervisores</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Card elevation={1}>
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" color="warning.main">1</Typography>
-                        <Typography variant="body2">Admin General</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-                
-                <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', py: 4 }}>
-                  📋 <strong>Próximamente:</strong> Componente GestionAdministradores.jsx
-                </Typography>
-                <Button variant="outlined" fullWidth disabled>
-                  En desarrollo
-                </Button>
-              </Paper>
+              <GestionAdministradores />
             )}
             
             {/* Sub-Tab 1: Técnicos */}
@@ -553,7 +504,7 @@ const DashboardAdmin = () => {
                 </Grid>
                 
                 <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', py: 4 }}>
-                  📋 <strong>Próximamente:</strong> Componente GestionZonas.jsx
+                  <strong>Próximamente:</strong> Componente GestionZonas.jsx
                 </Typography>
                 <Button variant="outlined" fullWidth disabled>
                   En desarrollo
@@ -567,7 +518,7 @@ const DashboardAdmin = () => {
         {tabValue === 3 && (
           <Box>
             <Typography variant="h5" gutterBottom>
-              📈 Reportes y Estadísticas
+              Reportes y Estadísticas
             </Typography>
             <Typography variant="body1" sx={{ mb: 3 }}>
               <strong>Funcionalidades disponibles:</strong> Generar reportes ejecutivos, exportar datos a Excel/PDF, métricas de rendimiento y análisis de zonas.
@@ -578,7 +529,7 @@ const DashboardAdmin = () => {
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    📊 Métricas de Rendimiento
+                    Métricas de Rendimiento
                   </Typography>
                   <List>
                     <ListItem>
@@ -605,7 +556,7 @@ const DashboardAdmin = () => {
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    🌍 Análisis por Zonas
+                    Análisis por Zonas
                   </Typography>
                   <List>
                     <ListItem>
@@ -650,7 +601,7 @@ const DashboardAdmin = () => {
       {/* Footer Info */}
       <Box mt={4} p={2} bgcolor="grey.100" borderRadius={1} mx={3}>
         <Typography variant="body2" color="textSecondary" textAlign="center">
-          👑 <strong>Permisos de Administrador:</strong> Control total del sistema | 
+          <strong>Permisos de Administrador:</strong> Control total del sistema | 
           Gestión completa de usuarios | Asignación de reportes | 
           Acceso a todas las configuraciones y estadísticas
         </Typography>
