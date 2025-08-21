@@ -79,7 +79,7 @@ const reportesService = {
 // Datos estáticos útiles
 export const estadosDisponibles = [
   { id: 1, nombre: 'Nuevo', color: '#3B82F6' },
-  { id: 2, nombre: 'En Revisión', color: '#F59E0B' },
+  { id: 2, nombre: 'Aprobado por Líder', color: '#10B981' },
   { id: 3, nombre: 'Asignado', color: '#8B5CF6' },
   { id: 4, nombre: 'En Proceso', color: '#EF4444' },
   { id: 5, nombre: 'Resuelto', color: '#10B981' }

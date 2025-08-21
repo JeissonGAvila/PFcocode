@@ -1,4 +1,4 @@
-// frontend/src/vistas/administrador/Dashboard.jsx
+// frontend/src/vistas/administrador/Dashboard.jsx - CORREGIDO PARA FLUJO
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -15,7 +15,8 @@ import {
   Paper,
   Divider,
   Tabs,
-  Tab
+  Tab,
+  Alert
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -30,7 +31,8 @@ import {
   Engineering as EngineeringIcon,
   Group as GroupIcon,
   LocationCity as LocationIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  AssignmentTurnedIn as AssignedIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
@@ -40,6 +42,7 @@ import GestionCiudadanos from '../../components/admin/GestionCiudadanos.jsx';
 import GestionLideres from '../../components/admin/GestionLideres.jsx';
 import GestionAdministradores from '../../components/admin/GestionAdministradores.jsx';
 import GestionZonas from '../../components/admin/GestionZonas.jsx';
+import reportesService from '../../services/admin/reportesService.js';
 
 const DashboardAdmin = () => {
   const { user } = useAuth();
@@ -50,11 +53,12 @@ const DashboardAdmin = () => {
   // Estado para sub-tabs de usuarios
   const [userTabValue, setUserTabValue] = useState(0);
   
+  // Estados para datos dinámicos
   const [stats, setStats] = useState({
-    totalReportes: 156,
-    reportesPendientes: 23,
-    reportesEnProceso: 31,
-    reportesResueltos: 102,
+    reportesPendientesAsignacion: 0,
+    reportesCriticosSinAsignar: 0,
+    reportesAsignados: 0,
+    reportesEnProceso: 0,
     tecnicosActivos: 8,
     ciudadanosRegistrados: 1247,
     lideresCocode: 45,
@@ -62,33 +66,55 @@ const DashboardAdmin = () => {
     administradores: 5
   });
 
-  // Datos simulados - después conectaremos con la API
-  const reportesCriticos = [
-    { id: 1, titulo: 'Falta de agua en Zona 3', tipo: 'Agua Potable', prioridad: 'Alta' },
-    { id: 2, titulo: 'Poste caído en 5ta Avenida', tipo: 'Energía Eléctrica', prioridad: 'Alta' },
-    { id: 3, titulo: 'Drenaje tapado Centro', tipo: 'Drenajes', prioridad: 'Media' }
-  ];
+  const [reportesCriticos, setReportesCriticos] = useState([]);
+  const [departamentosResumen, setDepartamentosResumen] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const tecnicosResumen = [
-    { nombre: 'Carlos López', departamento: 'Energía Eléctrica', reportes: 8, estado: 'Ocupado' },
-    { nombre: 'Ana Morales', departamento: 'Agua Potable', reportes: 5, estado: 'Disponible' },
-    { nombre: 'Pedro García', departamento: 'Drenajes', reportes: 12, estado: 'Ocupado' }
-  ];
+  // Cargar datos del dashboard
+  useEffect(() => {
+    cargarDatosDashboard();
+  }, []);
+
+  const cargarDatosDashboard = async () => {
+    try {
+      setLoading(true);
+      
+      // Obtener estadísticas reales del backend
+      const datosResponse = await reportesService.getDatosSelect();
+      
+      if (datosResponse.success) {
+        setStats(prev => ({
+          ...prev,
+          reportesPendientesAsignacion: datosResponse.estadisticas?.reportes_pendientes_asignacion || 0,
+          reportesCriticosSinAsignar: datosResponse.estadisticas?.reportes_criticos_sin_asignar || 0,
+          reportesAsignados: datosResponse.estadisticas?.reportes_asignados || 0,
+          reportesEnProceso: datosResponse.estadisticas?.reportes_en_proceso || 0
+        }));
+        
+        setDepartamentosResumen(datosResponse.departamentos || []);
+      }
+
+      // Obtener reportes críticos (simulados por ahora)
+      const reportesResponse = await reportesService.getAll();
+      if (reportesResponse.success) {
+        const criticos = reportesResponse.reportes
+          .filter(r => r.prioridad === 'Alta')
+          .slice(0, 5);
+        setReportesCriticos(criticos);
+      }
+      
+    } catch (error) {
+      console.error('Error al cargar datos del dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getPrioridadColor = (prioridad) => {
     switch (prioridad) {
       case 'Alta': return 'error';
       case 'Media': return 'warning';
       case 'Baja': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const getEstadoColor = (estado) => {
-    switch (estado) {
-      case 'Disponible': return 'success';
-      case 'Ocupado': return 'warning';
-      case 'No Disponible': return 'error';
       default: return 'default';
     }
   };
@@ -116,7 +142,7 @@ const DashboardAdmin = () => {
       >
         <Box>
           <Typography variant="h4" gutterBottom>
-            🔧 Panel Administrador
+            Panel Administrador
           </Typography>
           <Typography variant="h6">
             Bienvenido, {user?.nombre}
@@ -144,22 +170,22 @@ const DashboardAdmin = () => {
           }}
         >
           <Tab 
-            label="🏠 Dashboard Principal" 
+            label="Dashboard Principal" 
             icon={<DashboardIcon />}
             iconPosition="start"
           />
           <Tab 
-            label="📊 Gestión de Reportes" 
+            label="Gestión de Reportes" 
             icon={<ReporteIcon />}
             iconPosition="start"
           />
           <Tab 
-            label="👥 Gestión de Usuarios" 
+            label="Gestión de Usuarios" 
             icon={<PeopleIcon />}
             iconPosition="start"
           />
           <Tab 
-            label="📈 Reportes y Estadísticas" 
+            label="Reportes y Estadísticas" 
             icon={<TrendingIcon />}
             iconPosition="start"
           />
@@ -171,35 +197,32 @@ const DashboardAdmin = () => {
         {/* TAB 0: Dashboard Principal */}
         {tabValue === 0 && (
           <Box>
-            {/* Estadísticas Generales */}
+            {/* Alerta informativa del flujo */}
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                <strong>Flujo Correcto:</strong> Como administrador, asignas reportes que los líderes COCODE ya aprobaron. 
+                Los técnicos solo reciben reportes validados por la comunidad.
+              </Typography>
+            </Alert>
+
+            {/* Estadísticas Específicas de Asignación */}
             <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TrendingIcon /> Estadísticas Generales
+              <TrendingIcon /> Estadísticas de Asignación
             </Typography>
             
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid item xs={12} sm={6} md={3}>
                 <Card elevation={3}>
                   <CardContent sx={{ textAlign: 'center' }}>
-                    <ReporteIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="h4" color="primary">
-                      {stats.totalReportes}
-                    </Typography>
-                    <Typography color="textSecondary">
-                      Total Reportes
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <Card elevation={3}>
-                  <CardContent sx={{ textAlign: 'center' }}>
                     <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
                     <Typography variant="h4" color="warning.main">
-                      {stats.reportesPendientes}
+                      {stats.reportesPendientesAsignacion}
                     </Typography>
                     <Typography color="textSecondary">
-                      Pendientes
+                      Pendientes Asignación
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Aprobados por líderes
                     </Typography>
                   </CardContent>
                 </Card>
@@ -210,10 +233,30 @@ const DashboardAdmin = () => {
                   <CardContent sx={{ textAlign: 'center' }}>
                     <WarningIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
                     <Typography variant="h4" color="error.main">
-                      {stats.reportesEnProceso}
+                      {stats.reportesCriticosSinAsignar}
                     </Typography>
                     <Typography color="textSecondary">
-                      En Proceso
+                      Críticos Sin Asignar
+                    </Typography>
+                    <Typography variant="caption" color="error">
+                      Requieren atención inmediata
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} sm={6} md={3}>
+                <Card elevation={3}>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <AssignedIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
+                    <Typography variant="h4" color="primary.main">
+                      {stats.reportesAsignados}
+                    </Typography>
+                    <Typography color="textSecondary">
+                      Asignados
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      En cola de técnicos
                     </Typography>
                   </CardContent>
                 </Card>
@@ -224,69 +267,84 @@ const DashboardAdmin = () => {
                   <CardContent sx={{ textAlign: 'center' }}>
                     <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
                     <Typography variant="h4" color="success.main">
-                      {stats.reportesResueltos}
+                      {stats.reportesEnProceso}
                     </Typography>
                     <Typography color="textSecondary">
-                      Resueltos
+                      En Proceso
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Técnicos trabajando
                     </Typography>
                   </CardContent>
                 </Card>
               </Grid>
             </Grid>
 
-            {/* Reportes Críticos y Resumen Técnicos */}
+            {/* Reportes Críticos y Resumen Departamentos */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <WarningIcon color="error" /> Reportes Críticos
+                    <WarningIcon color="error" /> Reportes Críticos Pendientes
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
-                  <List>
-                    {reportesCriticos.map((reporte) => (
-                      <ListItem key={reporte.id}>
-                        <ListItemIcon>
-                          <ReporteIcon color="error" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={reporte.titulo}
-                          secondary={`${reporte.tipo} - Prioridad: ${reporte.prioridad}`}
-                        />
-                        <Chip 
-                          label={reporte.prioridad} 
-                          color={getPrioridadColor(reporte.prioridad)} 
-                          size="small" 
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
+                  {reportesCriticos.length > 0 ? (
+                    <List>
+                      {reportesCriticos.map((reporte) => (
+                        <ListItem key={reporte.id}>
+                          <ListItemIcon>
+                            <ReporteIcon color="error" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={reporte.titulo}
+                            secondary={`${reporte.tipo_problema} - ${reporte.zona} - Aprobado por líder`}
+                          />
+                          <Chip 
+                            label={reporte.prioridad} 
+                            color={getPrioridadColor(reporte.prioridad)} 
+                            size="small" 
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="textSecondary" textAlign="center" py={2}>
+                      No hay reportes críticos pendientes de asignación
+                    </Typography>
+                  )}
                 </Paper>
               </Grid>
 
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <PeopleIcon color="primary" /> Resumen por Departamentos
+                    <PeopleIcon color="primary" /> Carga por Departamentos
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
-                  <List>
-                    {tecnicosResumen.map((tecnico, index) => (
-                      <ListItem key={index}>
-                        <ListItemIcon>
-                          <PeopleIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={`${tecnico.nombre} - ${tecnico.departamento}`}
-                          secondary={`${tecnico.reportes} reportes asignados`}
-                        />
-                        <Chip 
-                          label={tecnico.estado} 
-                          color={getEstadoColor(tecnico.estado)} 
-                          size="small" 
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
+                  {departamentosResumen.length > 0 ? (
+                    <List>
+                      {departamentosResumen.map((depto, index) => (
+                        <ListItem key={index}>
+                          <ListItemIcon>
+                            <EngineeringIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={depto.departamento}
+                            secondary={`${depto.tecnicos_disponibles} técnicos disponibles`}
+                          />
+                          <Chip 
+                            label={`${depto.reportes_asignados} reportes`}
+                            color={depto.reportes_asignados > 10 ? 'warning' : 'success'}
+                            size="small" 
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="textSecondary" textAlign="center" py={2}>
+                      Cargando información de departamentos...
+                    </Typography>
+                  )}
                 </Paper>
               </Grid>
             </Grid>
@@ -300,13 +358,21 @@ const DashboardAdmin = () => {
                 <Grid item xs={12} sm={6} md={3}>
                   <Button 
                     fullWidth 
-                    variant="outlined" 
+                    variant="contained" 
                     startIcon={<ReporteIcon />}
                     size="large"
                     sx={{ py: 2 }}
                     onClick={() => setTabValue(1)}
+                    color="warning"
                   >
-                    Gestión de Reportes
+                    Asignar Reportes
+                    {stats.reportesPendientesAsignacion > 0 && (
+                      <Chip 
+                        label={stats.reportesPendientesAsignacion} 
+                        size="small" 
+                        sx={{ ml: 1, bgcolor: 'white', color: 'warning.main' }}
+                      />
+                    )}
                   </Button>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
@@ -406,7 +472,7 @@ const DashboardAdmin = () => {
 
             {/* Contenido de las Sub-Tabs */}
             
-            {/* Sub-Tab 0: Administradores - COMPONENTE FUNCIONAL INTEGRADO */}
+            {/* Sub-Tab 0: Administradores */}
             {userTabValue === 0 && (
               <GestionAdministradores />
             )}
@@ -435,30 +501,29 @@ const DashboardAdmin = () => {
                     <Grid item xs={12} sm={6} md={3}>
                       <Card elevation={1}>
                         <CardContent sx={{ textAlign: 'center' }}>
-                          <Typography variant="h6" color="success.main">6</Typography>
+                          <Typography variant="h6" color="success.main">{departamentosResumen.length}</Typography>
                           <Typography variant="body2">Departamentos</Typography>
                         </CardContent>
                       </Card>
                     </Grid>
                   </Grid>
                   
-                  {/* Tu componente existente */}
                   <GestionTecnicos />
                 </Box>
               </Paper>
             )}
             
-            {/* Sub-Tab 2: Líderes COCODE - COMPONENTE FUNCIONAL INTEGRADO */}
+            {/* Sub-Tab 2: Líderes COCODE */}
             {userTabValue === 2 && (
               <GestionLideres />
             )}
             
-            {/* Sub-Tab 3: Ciudadanos - COMPONENTE FUNCIONAL */}
+            {/* Sub-Tab 3: Ciudadanos */}
             {userTabValue === 3 && (
               <GestionCiudadanos />
             )}
             
-            {/* Sub-Tab 4: Zonas - COMPONENTE FUNCIONAL INTEGRADO */}
+            {/* Sub-Tab 4: Zonas */}
             {userTabValue === 4 && (
               <GestionZonas />
             )}
@@ -480,25 +545,25 @@ const DashboardAdmin = () => {
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    Métricas de Rendimiento
+                    Métricas de Asignación
                   </Typography>
                   <List>
                     <ListItem>
                       <ListItemText
-                        primary="Tiempo promedio de resolución"
-                        secondary="2.5 días"
+                        primary="Tiempo promedio de asignación"
+                        secondary="4.2 horas"
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
-                        primary="Tasa de resolución"
-                        secondary="85.3%"
+                        primary="Reportes asignados hoy"
+                        secondary={`${stats.reportesAsignados} reportes`}
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
-                        primary="Reportes por técnico (promedio)"
-                        secondary="8.3 reportes"
+                        primary="Eficiencia de asignación"
+                        secondary="92.1%"
                       />
                     </ListItem>
                   </List>
@@ -507,25 +572,25 @@ const DashboardAdmin = () => {
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
-                    Análisis por Zonas
+                    Análisis por Departamentos
                   </Typography>
                   <List>
                     <ListItem>
                       <ListItemText
-                        primary="Zona con más reportes"
-                        secondary="Zona 3 - 35 reportes"
+                        primary="Departamento más solicitado"
+                        secondary="Energía Eléctrica - 45%"
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
-                        primary="Zona con mayor resolución"
-                        secondary="Zona 1 - 95% resueltos"
+                        primary="Departamento con mejor tiempo"
+                        secondary="Agua Potable - 2.1 días promedio"
                       />
                     </ListItem>
                     <ListItem>
                       <ListItemText
-                        primary="Promedio de ciudadanos por zona"
-                        secondary="104 ciudadanos"
+                        primary="Reportes críticos resueltos"
+                        secondary="85% en menos de 24 horas"
                       />
                     </ListItem>
                   </List>
@@ -552,8 +617,8 @@ const DashboardAdmin = () => {
       {/* Footer Info */}
       <Box mt={4} p={2} bgcolor="grey.100" borderRadius={1} mx={3}>
         <Typography variant="body2" color="textSecondary" textAlign="center">
-          <strong>Permisos de Administrador:</strong> Control total del sistema | 
-          Gestión completa de usuarios | Asignación de reportes | 
+          <strong>Permisos de Administrador:</strong> Asignación de reportes aprobados por líderes | 
+          Gestión completa de usuarios | Control de departamentos técnicos | 
           Acceso a todas las configuraciones y estadísticas
         </Typography>
       </Box>

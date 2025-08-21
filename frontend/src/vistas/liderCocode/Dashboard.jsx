@@ -1,4 +1,4 @@
-// frontend/src/vistas/liderCocode/Dashboard.jsx
+// frontend/src/vistas/liderCocode/Dashboard.jsx - ACTUALIZADO CON BACKEND REAL
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -24,7 +24,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField
+  TextField,
+  CircularProgress
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -43,62 +44,45 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   Campaign as CampaignIcon,
-  Event as EventIcon
+  Event as EventIcon,
+  Refresh as RefreshIcon,
+  NotificationsActive as NotificationIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
+
+// 🆕 IMPORTAR EL NUEVO COMPONENTE
+import ReportesPendientesAprobacion from '../../components/lider/ReportesPendientesAprobacion.jsx';
+
+// 🆕 IMPORTAR SERVICIO REAL
+import { liderReportesService } from '../../services/lider/reportesService.js';
 
 const DashboardLider = () => {
   const { user } = useAuth();
   const [tabValue, setTabValue] = useState(0);
   const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
   
-  // Estadísticas comunitarias
+  // 🆕 ESTADOS REALES CON BACKEND
   const [statsComunitarias, setStatsComunitarias] = useState({
-    ciudadanosZona: 245,
-    ciudadanosVerificados: 198,
-    ciudadanosPendientes: 47,
-    reportesZona: 28,
-    reportesActivos: 15,
-    reportesResueltos: 13,
+    ciudadanosZona: 0,
+    ciudadanosVerificados: 0,
+    ciudadanosPendientes: 0,
+    reportesZona: 0,
+    reportesActivos: 0,
+    reportesResueltos: 0,
+    reportesPendientesAprobacion: 0,
     reunionesRealizadas: 3,
     proximaReunion: '2025-01-15'
   });
 
-  // Reportes de la zona del líder
-  const [reportesZona, setReportesZona] = useState([
-    {
-      id: 1,
-      numero: 'RPT-2025-008',
-      titulo: 'Falta de alumbrado público',
-      descripcion: 'Varias lámparas fundidas en el parque central',
-      ciudadano: 'José Mendoza',
-      telefono: '7745-6789',
-      direccion: 'Parque Central, Zona 1',
-      estado: 'Nuevo',
-      prioridad: 'Media',
-      tipo: 'Alumbrado Público',
-      fechaCreacion: '2025-01-08',
-      validadoLider: false
-    },
-    {
-      id: 2,
-      numero: 'RPT-2025-009',
-      titulo: 'Bache grande en calle principal',
-      descripcion: 'Bache que afecta el tránsito vehicular',
-      ciudadano: 'María Rodríguez',
-      telefono: '7756-7890',
-      direccion: '3ra Calle, Zona 1',
-      estado: 'Asignado',
-      prioridad: 'Alta',
-      tipo: 'Infraestructura',
-      fechaCreacion: '2025-01-07',
-      validadoLider: true,
-      tecnicoAsignado: 'Ing. Pedro García'
-    }
-  ]);
+  // 🆕 REPORTES REALES DE LA ZONA
+  const [reportesZona, setReportesZona] = useState([]);
+  const [reportesPendientes, setReportesPendientes] = useState([]);
 
-  // Ciudadanos de la zona
+  // Estados para ciudadanos (mantener mock por ahora)
   const [ciudadanosZona, setCiudadanosZona] = useState([
     {
       id: 1,
@@ -132,12 +116,90 @@ const DashboardLider = () => {
     }
   ]);
 
+  // 🆕 CARGAR DATOS REALES AL MONTAR
+  useEffect(() => {
+    cargarDatosIniciales();
+  }, []);
+
+  const cargarDatosIniciales = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        cargarReportesPendientes(),
+        cargarReportesZona(),
+        // cargarEstadisticas() // Implementar después
+      ]);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setError('Error al cargar datos del dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🆕 CARGAR REPORTES PENDIENTES DE APROBACIÓN
+  const cargarReportesPendientes = async () => {
+    try {
+      const response = await liderReportesService.getPendientesAprobacion();
+      if (response.success) {
+        setReportesPendientes(response.reportes || []);
+        
+        // Actualizar estadísticas
+        setStatsComunitarias(prev => ({
+          ...prev,
+          reportesPendientesAprobacion: response.reportes?.length || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error al cargar reportes pendientes:', error);
+    }
+  };
+
+  // 🆕 CARGAR TODOS LOS REPORTES DE LA ZONA
+  const cargarReportesZona = async () => {
+    try {
+      const response = await liderReportesService.getReportesZona({ limit: 10 });
+      if (response.success) {
+        setReportesZona(response.reportes || []);
+        
+        // Calcular estadísticas
+        const reportes = response.reportes || [];
+        const activos = reportes.filter(r => 
+          ['Nuevo', 'Aprobado por Líder', 'Asignado', 'En Proceso'].includes(r.estado_actual)
+        ).length;
+        const resueltos = reportes.filter(r => 
+          ['Resuelto', 'Cerrado'].includes(r.estado_actual)
+        ).length;
+        
+        setStatsComunitarias(prev => ({
+          ...prev,
+          reportesZona: reportes.length,
+          reportesActivos: activos,
+          reportesResueltos: resueltos
+        }));
+      }
+    } catch (error) {
+      console.error('Error al cargar reportes de zona:', error);
+    }
+  };
+
+  // 🆕 REFRESCAR DATOS
+  const handleRefrescar = async () => {
+    await cargarDatosIniciales();
+    setMensaje('Datos actualizados correctamente');
+    setTimeout(() => setMensaje(''), 3000);
+  };
+
   const getEstadoColor = (estado) => {
     switch (estado) {
-      case 'Nuevo': return 'info';
-      case 'Asignado': return 'warning';
-      case 'En Proceso': return 'primary';
+      case 'Nuevo': return 'warning';
+      case 'Aprobado por Líder': return 'info';
+      case 'Asignado': return 'primary';
+      case 'En Proceso': return 'secondary';
       case 'Resuelto': return 'success';
+      case 'Cerrado': return 'success';
+      case 'Rechazado por Líder': return 'error';
+      case 'Reabierto': return 'error';
       default: return 'default';
     }
   };
@@ -153,8 +215,16 @@ const DashboardLider = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    
+    // Recargar datos cuando cambie de tab
+    if (newValue === 0) {
+      cargarReportesZona();
+    } else if (newValue === 3) { // Tab de reportes pendientes
+      cargarReportesPendientes();
+    }
   };
 
+  // Función para manejar validación (mantener mock por ahora)
   const handleValidarReporte = (reporteId) => {
     setReportesZona(prev => 
       prev.map(reporte => 
@@ -201,18 +271,52 @@ const DashboardLider = () => {
           </Typography>
         </Box>
         
-        <LogoutButton variant="text" />
+        <Box display="flex" alignItems="center" gap={2}>
+          {/* 🆕 NOTIFICACIONES CON BADGE REAL */}
+          <Badge badgeContent={reportesPendientes.length} color="warning">
+            <NotificationIcon />
+          </Badge>
+          
+          {/* 🆕 BOTÓN REFRESCAR */}
+          <Button
+            variant="outlined"
+            color="inherit"
+            startIcon={<RefreshIcon />}
+            onClick={handleRefrescar}
+            disabled={loading}
+          >
+            Refrescar
+          </Button>
+          
+          <LogoutButton variant="text" />
+        </Box>
       </Box>
 
       {/* Contenido Principal */}
       <Box p={3}>
+        {/* 🆕 MENSAJES DE ESTADO */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+
+        {mensaje && (
+          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMensaje('')}>
+            {mensaje}
+          </Alert>
+        )}
+
         {/* Alerta de Responsabilidad Comunitaria */}
         <Alert severity="success" sx={{ mb: 3 }}>
           <strong>👥 Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
           Coordinas con técnicos y validas reportes comunitarios.
+          {reportesPendientes.length > 0 && (
+            <strong> ⚠️ Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
+          )}
         </Alert>
 
-        {/* Estadísticas Comunitarias */}
+        {/* 🆕 ESTADÍSTICAS REALES */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card elevation={3}>
@@ -231,26 +335,12 @@ const DashboardLider = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Card elevation={3}>
               <CardContent sx={{ textAlign: 'center' }}>
-                <VerifiedIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="success.main">
-                  {statsComunitarias.ciudadanosVerificados}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Verificados
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ReporteIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
+                <WarningIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
                 <Typography variant="h4" color="warning.main">
-                  {statsComunitarias.reportesZona}
+                  {statsComunitarias.reportesPendientesAprobacion}
                 </Typography>
                 <Typography color="textSecondary" variant="body2">
-                  Reportes Zona
+                  Pendientes Aprobación
                 </Typography>
               </CardContent>
             </Card>
@@ -259,28 +349,43 @@ const DashboardLider = () => {
           <Grid item xs={12} sm={6} md={3}>
             <Card elevation={3}>
               <CardContent sx={{ textAlign: 'center' }}>
-                <EventIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
+                <ReporteIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
                 <Typography variant="h4" color="info.main">
-                  {statsComunitarias.reunionesRealizadas}
+                  {statsComunitarias.reportesActivos}
                 </Typography>
                 <Typography color="textSecondary" variant="body2">
-                  Reuniones 2025
+                  Reportes Activos
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card elevation={3}>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
+                <Typography variant="h4" color="success.main">
+                  {statsComunitarias.reportesResueltos}
+                </Typography>
+                <Typography color="textSecondary" variant="body2">
+                  Reportes Resueltos
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
         </Grid>
 
-        {/* Tabs para organizar contenido */}
+        {/* 🆕 TABS ACTUALIZADOS */}
         <Paper sx={{ mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label="📋 Reportes de mi Zona" />
             <Tab label="👥 Ciudadanos" />
             <Tab label="🤝 Coordinación" />
+            <Tab label={`⚠️ Pendientes Aprobación (${reportesPendientes.length})`} />
           </Tabs>
         </Paper>
 
-        {/* Tab 1 - Reportes de la Zona */}
+        {/* Tab 0 - Reportes de la Zona (CON DATOS REALES) */}
         {tabValue === 0 && (
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
@@ -300,89 +405,84 @@ const DashboardLider = () => {
                 </Box>
                 <Divider sx={{ mb: 3 }} />
                 
-                {reportesZona.map((reporte) => (
-                  <Card key={reporte.id} sx={{ mb: 2 }}>
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                        <Box flex={1}>
-                          <Box display="flex" alignItems="center" gap={1} mb={1}>
-                            <Typography variant="h6">
-                              {reporte.titulo}
+                {loading ? (
+                  <Box display="flex" justifyContent="center" p={3}>
+                    <CircularProgress />
+                  </Box>
+                ) : reportesZona.length === 0 ? (
+                  <Alert severity="info">
+                    No hay reportes en tu zona actualmente.
+                  </Alert>
+                ) : (
+                  reportesZona.map((reporte) => (
+                    <Card key={reporte.id} sx={{ mb: 2 }}>
+                      <CardContent>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                          <Box flex={1}>
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                              <Typography variant="h6">
+                                {reporte.titulo}
+                              </Typography>
+                            </Box>
+                            <Typography variant="body2" color="textSecondary" gutterBottom>
+                              #{reporte.numero_reporte} | {new Date(reporte.fecha_reporte).toLocaleDateString()} | {reporte.tipo_problema}
                             </Typography>
-                            {!reporte.validadoLider && (
-                              <Chip label="Pendiente Validación" color="warning" size="small" />
+                            <Typography variant="body1" gutterBottom>
+                              {reporte.descripcion}
+                            </Typography>
+                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <HomeIcon fontSize="small" /> {reporte.direccion_completa}
+                            </Typography>
+                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                              <PhoneIcon fontSize="small" /> {reporte.ciudadano_nombre} {reporte.ciudadano_apellido} - {reporte.ciudadano_telefono}
+                            </Typography>
+                            {reporte.tecnico_nombre && (
+                              <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                <EngineeringIcon fontSize="small" /> Técnico: {reporte.tecnico_nombre} {reporte.tecnico_apellido}
+                              </Typography>
                             )}
                           </Box>
-                          <Typography variant="body2" color="textSecondary" gutterBottom>
-                            #{reporte.numero} | {reporte.fechaCreacion} | {reporte.tipo}
-                          </Typography>
-                          <Typography variant="body1" gutterBottom>
-                            {reporte.descripcion}
-                          </Typography>
-                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <HomeIcon fontSize="small" /> {reporte.direccion}
-                          </Typography>
-                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                            <PhoneIcon fontSize="small" /> {reporte.ciudadano} - {reporte.telefono}
-                          </Typography>
-                          {reporte.tecnicoAsignado && (
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                              <EngineeringIcon fontSize="small" /> Técnico: {reporte.tecnicoAsignado}
-                            </Typography>
-                          )}
+                          
+                          <Box sx={{ ml: 2, textAlign: 'right' }}>
+                            <Chip 
+                              label={reporte.estado_actual}
+                              color={getEstadoColor(reporte.estado_actual)}
+                              sx={{ mb: 1, display: 'block' }}
+                            />
+                            <Chip 
+                              label={reporte.prioridad}
+                              color={getPrioridadColor(reporte.prioridad)}
+                              size="small"
+                            />
+                          </Box>
                         </Box>
-                        
-                        <Box sx={{ ml: 2, textAlign: 'right' }}>
-                          <Chip 
-                            label={reporte.estado}
-                            color={getEstadoColor(reporte.estado)}
-                            sx={{ mb: 1, display: 'block' }}
-                          />
-                          <Chip 
-                            label={reporte.prioridad}
-                            color={getPrioridadColor(reporte.prioridad)}
-                            size="small"
-                          />
-                        </Box>
-                      </Box>
 
-                      <Divider sx={{ mb: 2 }} />
-                      <Box display="flex" gap={1} flexWrap="wrap">
-                        {!reporte.validadoLider && (
+                        <Divider sx={{ mb: 2 }} />
+                        <Box display="flex" gap={1} flexWrap="wrap">
                           <Button
                             size="small"
-                            variant="contained"
-                            color="success"
-                            startIcon={<CheckIcon />}
-                            onClick={() => handleValidarReporte(reporte.id)}
+                            variant="outlined"
+                            startIcon={<ViewIcon />}
                           >
-                            Validar Reporte
+                            Ver Detalles
                           </Button>
-                        )}
-                        
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<ViewIcon />}
-                        >
-                          Ver Detalles
-                        </Button>
-                        
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<PhoneIcon />}
-                        >
-                          Contactar Ciudadano
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
+                          
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<PhoneIcon />}
+                          >
+                            Contactar Ciudadano
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </Paper>
             </Grid>
 
-            {/* Panel lateral con información comunitaria */}
+            {/* Panel lateral con información comunitaria REAL */}
             <Grid item xs={12} lg={4}>
               <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
                 <Typography variant="h6" gutterBottom>
@@ -392,9 +492,18 @@ const DashboardLider = () => {
                 
                 <Box mb={2}>
                   <Typography variant="body2" color="textSecondary">
-                    Reportes Activos
+                    Reportes Pendientes Aprobación
                   </Typography>
                   <Typography variant="h4" color="warning.main">
+                    {statsComunitarias.reportesPendientesAprobacion}
+                  </Typography>
+                </Box>
+                
+                <Box mb={2}>
+                  <Typography variant="body2" color="textSecondary">
+                    Reportes Activos
+                  </Typography>
+                  <Typography variant="h4" color="info.main">
                     {statsComunitarias.reportesActivos}
                   </Typography>
                 </Box>
@@ -428,6 +537,16 @@ const DashboardLider = () => {
                   <Button
                     fullWidth
                     variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefrescar}
+                    disabled={loading}
+                  >
+                    Actualizar Datos
+                  </Button>
+                  
+                  <Button
+                    fullWidth
+                    variant="outlined"
                     startIcon={<CampaignIcon />}
                   >
                     Convocar Reunión
@@ -454,7 +573,7 @@ const DashboardLider = () => {
           </Grid>
         )}
 
-        {/* Tab 2 - Gestión de Ciudadanos */}
+        {/* Tab 1 - Gestión de Ciudadanos (MANTENER COMO ESTABA) */}
         {tabValue === 1 && (
           <Paper elevation={3} sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -527,7 +646,7 @@ const DashboardLider = () => {
           </Paper>
         )}
 
-        {/* Tab 3 - Coordinación */}
+        {/* Tab 2 - Coordinación (MANTENER COMO ESTABA) */}
         {tabValue === 2 && (
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
@@ -614,6 +733,11 @@ const DashboardLider = () => {
           </Grid>
         )}
 
+        {/* 🆕 Tab 3 - REPORTES PENDIENTES DE APROBACIÓN */}
+        {tabValue === 3 && (
+          <ReportesPendientesAprobacion />
+        )}
+
         {/* Footer Info */}
         <Box mt={4} p={2} bgcolor="success.50" borderRadius={1} border="1px solid" borderColor="success.200">
           <Typography variant="body2" color="textSecondary" textAlign="center">
@@ -625,7 +749,7 @@ const DashboardLider = () => {
         </Box>
       </Box>
 
-      {/* Dialog para nuevo reporte comunitario */}
+      {/* Dialog para nuevo reporte comunitario (MANTENER COMO ESTABA) */}
       <Dialog open={openNuevoReporte} onClose={() => setOpenNuevoReporte(false)} maxWidth="md" fullWidth>
         <DialogTitle>📝 Crear Reporte Comunitario</DialogTitle>
         <DialogContent>

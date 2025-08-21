@@ -1,4 +1,4 @@
-// backend/index.js - Solo rutas existentes
+// backend/index.js - Con Panel Líder agregado
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -19,7 +19,7 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// SOLO CARGAR RUTAS QUE EXISTEN
+// RUTAS EXISTENTES
 
 // 1. Auth (existe)
 try {
@@ -30,7 +30,7 @@ try {
   console.log('❌ Error en auth:', error.message);
 }
 
-// 2. NUEVO: Administradores
+// 2. Administradores
 try {
   const administradoresRoutes = require('./routes/admin/administradoresRoutes');
   app.use('/api/admin/administradores', administradoresRoutes);
@@ -75,7 +75,7 @@ try {
   console.log('❌ Error en ciudadanos:', error.message);
 }
 
-// 7. NUEVO: Zonas Admin (gestión completa)
+// 7. Zonas Admin (gestión completa)
 try {
   const zonasAdminRoutes = require('./routes/admin/zonasRoutes');
   app.use('/api/admin/zonas', zonasAdminRoutes);
@@ -102,6 +102,19 @@ try {
   console.log('❌ Error en zonas:', error.message);
 }
 
+// ===================================
+// 🆕 NUEVA SECCIÓN: PANEL LÍDER COCODE
+// ===================================
+
+// 10. NUEVO: Reportes de Líder COCODE
+try {
+  const liderReportesRoutes = require('./routes/lider/reportesRoutes');
+  app.use('/api/lider/reportes', liderReportesRoutes);
+  console.log('✅ Líder Reportes routes cargadas - PANEL LÍDER ACTIVO');
+} catch (error) {
+  console.log('❌ Error en líder reportes:', error.message);
+}
+
 // Manejo de errores
 app.use((error, req, res, next) => {
   console.error('💥 ERROR:', error);
@@ -124,8 +137,9 @@ app.listen(PORT, () => {
   console.log('   - /api/admin/reportes/*');
   console.log('   - /api/admin/lideres/*');
   console.log('   - /api/admin/ciudadanos/*');
-  console.log('   - /api/admin/zonas/*  ← NUEVA GESTIÓN COMPLETA');
+  console.log('   - /api/admin/zonas/*');
   console.log('   - /api/tipos-problema/*');
-  console.log('   - /api/zonas/*  ← ORIGINAL');
+  console.log('   - /api/zonas/*');
+  console.log('   🆕 - /api/lider/reportes/* ← NUEVO PANEL LÍDER');
   console.log('✅ SERVIDOR FUNCIONANDO');
 });
