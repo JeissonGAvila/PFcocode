@@ -1,4 +1,4 @@
-// backend/index.js - Con Panel Líder agregado
+// backend/index.js - Con Panel Técnico agregado
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -103,16 +103,34 @@ try {
 }
 
 // ===================================
-// 🆕 NUEVA SECCIÓN: PANEL LÍDER COCODE
+// 🆕 PANELES ESPECÍFICOS POR USUARIO
 // ===================================
 
-// 10. NUEVO: Reportes de Líder COCODE
+// 10. PANEL LÍDER COCODE
 try {
   const liderReportesRoutes = require('./routes/lider/reportesRoutes');
   app.use('/api/lider/reportes', liderReportesRoutes);
   console.log('✅ Líder Reportes routes cargadas - PANEL LÍDER ACTIVO');
 } catch (error) {
   console.log('❌ Error en líder reportes:', error.message);
+}
+
+// 11. NUEVO: PANEL TÉCNICO
+try {
+  const tecnicoReportesRoutes = require('./routes/tecnico/reportesRoutes');
+  app.use('/api/tecnico/reportes', tecnicoReportesRoutes);
+  console.log('✅ Técnico Reportes routes cargadas - PANEL TÉCNICO ACTIVO');
+} catch (error) {
+  console.log('❌ Error en técnico reportes:', error.message);
+}
+
+// Estados de reporte (ruta común)
+try {
+  const estadosReporteRoutes = require('./routes/estadosReporteRoutes');
+  app.use('/api/estados-reporte', estadosReporteRoutes);
+  console.log('✅ Estados Reporte routes cargadas');
+} catch (error) {
+  console.log('❌ Error en estados reporte:', error.message);
 }
 
 // Manejo de errores
@@ -140,6 +158,8 @@ app.listen(PORT, () => {
   console.log('   - /api/admin/zonas/*');
   console.log('   - /api/tipos-problema/*');
   console.log('   - /api/zonas/*');
-  console.log('   🆕 - /api/lider/reportes/* ← NUEVO PANEL LÍDER');
+  console.log('   - /api/estados-reporte/*');
+  console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
+  console.log('   🆕 - /api/tecnico/reportes/* ← NUEVO PANEL TÉCNICO');
   console.log('✅ SERVIDOR FUNCIONANDO');
 });

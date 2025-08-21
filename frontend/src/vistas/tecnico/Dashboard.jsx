@@ -1,4 +1,4 @@
-// frontend/src/vistas/tecnico/Dashboard.jsx
+// frontend/src/vistas/tecnico/Dashboard.jsx - COMPLETO Y FUNCIONAL
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -14,13 +14,23 @@ import {
   Chip,
   Paper,
   Divider,
-  LinearProgress,
-  Avatar,
+  Tabs,
+  Tab,
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Snackbar,
   IconButton,
   Tooltip,
-  Alert,
-  Tab,
-  Tabs
+  LinearProgress,
+  CircularProgress
 } from '@mui/material';
 import {
   Engineering as EngineeringIcon,
@@ -30,80 +40,159 @@ import {
   Warning as WarningIcon,
   LocationOn as LocationIcon,
   Phone as PhoneIcon,
-  Upload as UploadIcon,
   Comment as CommentIcon,
   PlayArrow as StartIcon,
   Pause as PauseIcon,
-  Done as DoneIcon
+  Done as DoneIcon,
+  History as HistoryIcon,
+  Build as BuildIcon,
+  AccessTime as TimeIcon,
+  Person as PersonIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
+import tecnicoService, { estadosPermitidosTecnico, coloresEstados, tiposSeguimiento } from '../../services/tecnico/tecnicoService.js';
 
 const DashboardTecnico = () => {
   const { user } = useAuth();
-  const [tabValue, setTabValue] = useState(0);
   
-  // Estado del técnico
-  const [statsPersonales, setStatsPersonales] = useState({
-    reportesAsignados: 12,
-    reportesEnProceso: 5,
-    reportesCompletados: 7,
-    reportesUrgentes: 2,
-    tiempoPromedioResolucion: '2.3 días',
-    eficiencia: 85
+  // Estados principales
+  const [tabValue, setTabValue] = useState(0);
+  const [reportes, setReportes] = useState([]);
+  const [estadisticas, setEstadisticas] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Estados para modales
+  const [openCambiarEstado, setOpenCambiarEstado] = useState(false);
+  const [openSeguimiento, setOpenSeguimiento] = useState(false);
+  const [openHistorial, setOpenHistorial] = useState(false);
+  const [selectedReporte, setSelectedReporte] = useState(null);
+  const [historialReporte, setHistorialReporte] = useState([]);
+  
+  // Estados para formularios
+  const [nuevoEstado, setNuevoEstado] = useState('');
+  const [comentarioEstado, setComentarioEstado] = useState('');
+  const [seguimientoData, setSeguimientoData] = useState({
+    comentario: '',
+    tiempo_invertido_horas: '',
+    accion_tomada: ''
   });
+  
+  // Estados para notificaciones
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Reportes filtrados por departamento del técnico
-  const [misReportes, setMisReportes] = useState([
-    {
-      id: 1,
-      numero: 'RPT-2025-001',
-      titulo: 'Corte de energía en Zona 2',
-      descripcion: 'Falta de suministro eléctrico en todo el sector',
-      direccion: '5ta Avenida, Zona 2',
-      estado: 'Asignado',
-      prioridad: 'Alta',
-      fechaCreacion: '2025-01-08',
-      ciudadano: 'María González',
-      telefono: '7712-3456'
-    },
-    {
-      id: 2,
-      numero: 'RPT-2025-003',
-      titulo: 'Poste de luz caído',
-      descripcion: 'Poste eléctrico caído por vientos fuertes',
-      direccion: '10ma Calle, Zona 1',
-      estado: 'En Proceso',
-      prioridad: 'Alta',
-      fechaCreacion: '2025-01-07',
-      ciudadano: 'Carlos Pérez',
-      telefono: '7723-4567'
-    },
-    {
-      id: 3,
-      numero: 'RPT-2025-005',
-      titulo: 'Transformador con ruido',
-      descripcion: 'Transformador hace ruidos extraños',
-      direccion: 'Barrio El Centro',
-      estado: 'Pendiente Materiales',
-      prioridad: 'Media',
-      fechaCreacion: '2025-01-06',
-      ciudadano: 'Ana López',
-      telefono: '7734-5678'
+  // Cargar datos iniciales
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Para pruebas, usaremos el ID del primer técnico de energía
+      const tecnicoId = 1; // Cambiar por el ID real del técnico autenticado
+      
+      const [reportesResponse, statsResponse] = await Promise.all([
+        tecnicoService.getMisReportes(tecnicoId),
+        tecnicoService.getEstadisticas(tecnicoId)
+      ]);
+      
+      if (reportesResponse.success) {
+        setReportes(reportesResponse.reportes || []);
+        setEstadisticas(reportesResponse.estadisticas || {});
+      }
+      
+      if (statsResponse.success) {
+        setEstadisticas(prev => ({ ...prev, ...statsResponse.estadisticas }));
+      }
+      
+    } catch (error) {
+      console.error('Error al cargar datos del técnico:', error);
+      setError(error.message);
+      mostrarSnackbar('Error al cargar datos: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  // Herramientas y recursos del técnico
-  const [herramientas] = useState([
-    { nombre: 'Checklist Energía Eléctrica', icono: '📋', disponible: true },
-    { nombre: 'Materiales en Stock', icono: '📦', disponible: true },
-    { nombre: 'Mapa de Reportes', icono: '🗺️', disponible: true },
-    { nombre: 'Contactos de Emergencia', icono: '📞', disponible: true }
-  ]);
+  const mostrarSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
+  const cerrarSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  // Funciones para modales
+  const abrirModalCambiarEstado = (reporte) => {
+    setSelectedReporte(reporte);
+    setNuevoEstado('');
+    setComentarioEstado('');
+    setOpenCambiarEstado(true);
+  };
+
+  const abrirModalSeguimiento = (reporte) => {
+    setSelectedReporte(reporte);
+    setSeguimientoData({
+      comentario: '',
+      tiempo_invertido_horas: '',
+      accion_tomada: ''
+    });
+    setOpenSeguimiento(true);
+  };
+
+  const abrirModalHistorial = async (reporte) => {
+    setSelectedReporte(reporte);
+    try {
+      const response = await tecnicoService.getHistorialReporte(reporte.id);
+      setHistorialReporte(response.historial || []);
+      setOpenHistorial(true);
+    } catch (error) {
+      mostrarSnackbar('Error al cargar historial: ' + error.message, 'error');
+    }
+  };
+
+  // Funciones de acción
+  const handleCambiarEstado = async () => {
+    if (!selectedReporte || !nuevoEstado) return;
+    
+    try {
+      setLoading(true);
+      await tecnicoService.cambiarEstado(selectedReporte.id, nuevoEstado, comentarioEstado);
+      mostrarSnackbar(`Estado cambiado exitosamente a "${nuevoEstado}"`, 'success');
+      setOpenCambiarEstado(false);
+      cargarDatos();
+    } catch (error) {
+      mostrarSnackbar('Error al cambiar estado: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAgregarSeguimiento = async () => {
+    if (!selectedReporte || !seguimientoData.comentario) return;
+    
+    try {
+      setLoading(true);
+      await tecnicoService.agregarSeguimiento(selectedReporte.id, seguimientoData);
+      mostrarSnackbar('Seguimiento agregado exitosamente', 'success');
+      setOpenSeguimiento(false);
+      cargarDatos();
+    } catch (error) {
+      mostrarSnackbar('Error al agregar seguimiento: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funciones auxiliares
   const getEstadoColor = (estado) => {
     switch (estado) {
-      case 'Asignado': return 'info';
+      case 'Asignado': return 'primary';
       case 'En Proceso': return 'warning';
       case 'Pendiente Materiales': return 'error';
       case 'Resuelto': return 'success';
@@ -120,26 +209,30 @@ const DashboardTecnico = () => {
     }
   };
 
+  const getEstadosPermitidos = (estadoActual) => {
+    return estadosPermitidosTecnico[estadoActual] || [];
+  };
+
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
 
-  const handleCambiarEstado = (reporteId, nuevoEstado) => {
-    setMisReportes(prev => 
-      prev.map(reporte => 
-        reporte.id === reporteId 
-          ? { ...reporte, estado: nuevoEstado }
-          : reporte
-      )
+  if (loading && reportes.length === 0) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Cargando reportes asignados...
+        </Typography>
+      </Box>
     );
-    console.log(`Cambiando reporte ${reporteId} a ${nuevoEstado}`);
-  };
+  }
 
   return (
     <Box>
       {/* Header del Panel Técnico */}
       <Box 
-        bgcolor="warning.main" 
+        bgcolor="success.main" 
         color="white" 
         p={3}
         display="flex"
@@ -147,337 +240,576 @@ const DashboardTecnico = () => {
         alignItems="center"
       >
         <Box>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <EngineeringIcon sx={{ fontSize: 40 }} /> Panel Técnico
+          <Typography variant="h4" gutterBottom>
+            Panel Técnico
           </Typography>
           <Typography variant="h6">
-            Técnico: {user?.nombre}
+            {user?.nombre} - {user?.departamento || 'Energía Eléctrica'}
           </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            Departamento: <strong>{user?.departamento || 'No especificado'}</strong> | {user?.correo}
+          <Typography variant="body2" sx={{ opacity: 0.9 }}>
+            Reportes asignados a tu departamento | {user?.correo}
           </Typography>
         </Box>
         
         <LogoutButton variant="text" />
       </Box>
 
-      {/* Contenido Principal */}
+      {/* Sistema de Tabs */}
+      <Paper sx={{ borderRadius: 0 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={handleTabChange} 
+          variant="fullWidth"
+          sx={{
+            '& .MuiTab-root': {
+              minHeight: 64,
+              fontSize: '0.95rem',
+              fontWeight: 500
+            }
+          }}
+        >
+          <Tab 
+            label="Mis Reportes" 
+            icon={<ReporteIcon />}
+            iconPosition="start"
+          />
+          <Tab 
+            label="Estadísticas" 
+            icon={<ScheduleIcon />}
+            iconPosition="start"
+          />
+          <Tab 
+            label="Herramientas" 
+            icon={<BuildIcon />}
+            iconPosition="start"
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Contenido de las Pestañas */}
       <Box p={3}>
-        {/* Alerta de Departamento */}
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>🔧 Acceso Restringido:</strong> Solo puedes ver y gestionar reportes del departamento de <strong>{user?.departamento}</strong>
-        </Alert>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+            <Button onClick={cargarDatos} sx={{ ml: 2 }}>
+              Reintentar
+            </Button>
+          </Alert>
+        )}
 
-        {/* Estadísticas del Técnico */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ReporteIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="primary">
-                  {statsPersonales.reportesAsignados}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Asignados
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="warning.main">
-                  {statsPersonales.reportesEnProceso}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  En Proceso
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="success.main">
-                  {statsPersonales.reportesCompletados}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Completados
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <WarningIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="error.main">
-                  {statsPersonales.reportesUrgentes}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Urgentes
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Card elevation={3}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  ⏱️ Rendimiento
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Tiempo promedio: {statsPersonales.tiempoPromedioResolucion}
-                </Typography>
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="body2">
-                    Eficiencia: {statsPersonales.eficiencia}%
-                  </Typography>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={statsPersonales.eficiencia} 
-                    sx={{ mt: 1 }}
-                    color={statsPersonales.eficiencia > 80 ? 'success' : 'warning'}
-                  />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* Tabs para organizar contenido */}
-        <Paper sx={{ mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleTabChange} centered>
-            <Tab label="📋 Mis Reportes" />
-            <Tab label="🛠️ Herramientas" />
-          </Tabs>
-        </Paper>
-
-        {/* Tab Content */}
+        {/* TAB 0: Mis Reportes */}
         {tabValue === 0 && (
-          <Grid container spacing={3}>
-            {/* Lista de Reportes Asignados */}
-            <Grid item xs={12} lg={8}>
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ReporteIcon color="primary" /> Reportes de {user?.departamento}
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                {misReportes.map((reporte) => (
-                  <Card key={reporte.id} sx={{ mb: 2, border: reporte.prioridad === 'Alta' ? '2px solid #f44336' : '1px solid #e0e0e0' }}>
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                        <Box flex={1}>
+          <Box>
+            {/* Alerta informativa */}
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                <strong>Panel Técnico:</strong> Solo ves reportes de tu departamento que han sido asignados por administradores. 
+                Puedes cambiar estados y agregar seguimiento.
+              </Typography>
+            </Alert>
+
+            {/* Estadísticas rápidas */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card elevation={2}>
+                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <ReporteIcon color="primary" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="primary.main">
+                      {estadisticas.total_asignados || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Total Asignados
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card elevation={2}>
+                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <ScheduleIcon color="warning" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="warning.main">
+                      {estadisticas.pendientes || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Pendientes
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card elevation={2}>
+                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <WarningIcon color="error" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="error.main">
+                      {estadisticas.en_proceso || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      En Proceso
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card elevation={2}>
+                  <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <CheckIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="success.main">
+                      {estadisticas.resueltos || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Resueltos
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Lista de reportes */}
+            {reportes.length > 0 ? (
+              <Grid container spacing={3}>
+                {reportes.map((reporte) => (
+                  <Grid item xs={12} md={6} key={reporte.id}>
+                    <Card elevation={3}>
+                      <CardContent>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                           <Typography variant="h6" gutterBottom>
                             {reporte.titulo}
                           </Typography>
-                          <Typography variant="body2" color="textSecondary" gutterBottom>
-                            #{reporte.numero} | {reporte.fechaCreacion}
-                          </Typography>
-                          <Typography variant="body1" gutterBottom>
-                            {reporte.descripcion}
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                            <LocationIcon fontSize="small" color="action" />
-                            <Typography variant="body2">{reporte.direccion}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                            <PhoneIcon fontSize="small" color="action" />
-                            <Typography variant="body2">{reporte.ciudadano} - {reporte.telefono}</Typography>
-                          </Box>
-                        </Box>
-                        
-                        <Box sx={{ ml: 2, textAlign: 'right' }}>
                           <Chip 
                             label={reporte.estado}
                             color={getEstadoColor(reporte.estado)}
-                            sx={{ mb: 1, display: 'block' }}
-                          />
-                          <Chip 
-                            label={reporte.prioridad}
-                            color={getPrioridadColor(reporte.prioridad)}
                             size="small"
                           />
                         </Box>
-                      </Box>
 
-                      {/* Acciones del Reporte */}
-                      <Divider sx={{ mb: 2 }} />
-                      <Box display="flex" gap={1} flexWrap="wrap">
-                        {reporte.estado === 'Asignado' && (
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          <strong>#{reporte.numero_reporte}</strong> | {reporte.tipo_problema}
+                        </Typography>
+
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                          {reporte.descripcion}
+                        </Typography>
+
+                        <Box display="flex" alignItems="center" mb={1}>
+                          <LocationIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
+                          <Typography variant="body2" color="textSecondary">
+                            {reporte.direccion}
+                          </Typography>
+                        </Box>
+
+                        <Box display="flex" alignItems="center" mb={1}>
+                          <PersonIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
+                          <Typography variant="body2" color="textSecondary">
+                            Reportado por: {reporte.reportado_por}
+                          </Typography>
+                        </Box>
+
+                        {reporte.telefono_contacto && (
+                          <Box display="flex" alignItems="center" mb={2}>
+                            <PhoneIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
+                            <Typography variant="body2" color="textSecondary">
+                              {reporte.telefono_contacto}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                          <Chip 
+                            label={`Prioridad: ${reporte.prioridad}`}
+                            color={getPrioridadColor(reporte.prioridad)}
+                            variant="outlined"
+                            size="small"
+                          />
+                          <Typography variant="caption" color="textSecondary">
+                            Asignado hace {reporte.dias_asignado || 0} días
+                          </Typography>
+                        </Box>
+
+                        <Divider sx={{ my: 2 }} />
+
+                        {/* Botones de acción */}
+                        <Box display="flex" gap={1} flexWrap="wrap">
                           <Button
                             size="small"
                             variant="contained"
-                            color="warning"
+                            color="primary"
                             startIcon={<StartIcon />}
-                            onClick={() => handleCambiarEstado(reporte.id, 'En Proceso')}
+                            onClick={() => abrirModalCambiarEstado(reporte)}
+                            disabled={getEstadosPermitidos(reporte.estado).length === 0}
                           >
-                            Iniciar
+                            Cambiar Estado
                           </Button>
-                        )}
-                        
-                        {reporte.estado === 'En Proceso' && (
-                          <>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="success"
-                              startIcon={<DoneIcon />}
-                              onClick={() => handleCambiarEstado(reporte.id, 'Resuelto')}
-                            >
-                              Resolver
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              startIcon={<PauseIcon />}
-                              onClick={() => handleCambiarEstado(reporte.id, 'Pendiente Materiales')}
-                            >
-                              Pendiente Materiales
-                            </Button>
-                          </>
-                        )}
-
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<UploadIcon />}
-                        >
-                          Subir Evidencia
-                        </Button>
-                        
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CommentIcon />}
-                        >
-                          Agregar Comentario
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<CommentIcon />}
+                            onClick={() => abrirModalSeguimiento(reporte)}
+                          >
+                            Seguimiento
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<HistoryIcon />}
+                            onClick={() => abrirModalHistorial(reporte)}
+                          >
+                            Historial
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
                 ))}
-              </Paper>
-            </Grid>
-
-            {/* Panel de Acciones Rápidas */}
-            <Grid item xs={12} lg={4}>
-              <Paper elevation={3} sx={{ p: 3 }}>
+              </Grid>
+            ) : (
+              <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
+                <EngineeringIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
                 <Typography variant="h6" gutterBottom>
-                  ⚡ Acciones Rápidas
+                  No tienes reportes asignados
                 </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box display="flex" flexDirection="column" gap={2}>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="primary"
-                    startIcon={<ReporteIcon />}
-                  >
-                    Ver Todos Mis Reportes
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<UploadIcon />}
-                  >
-                    Centro de Archivos
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<LocationIcon />}
-                  >
-                    Mapa de Reportes
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<PhoneIcon />}
-                  >
-                    Contactos de Emergencia
-                  </Button>
-                </Box>
-
-                {/* Recordatorios */}
-                <Box mt={3}>
-                  <Typography variant="h6" gutterBottom>
-                    📝 Recordatorios
-                  </Typography>
-                  <Alert severity="warning" sx={{ mb: 1 }}>
-                    2 reportes urgentes pendientes
-                  </Alert>
-                  <Alert severity="info">
-                    Reunión técnica: Viernes 10 AM
-                  </Alert>
-                </Box>
+                <Typography variant="body2" color="textSecondary">
+                  Los reportes aparecerán aquí cuando los administradores te los asignen.
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  startIcon={<RefreshIcon />}
+                  onClick={cargarDatos}
+                  sx={{ mt: 2 }}
+                >
+                  Actualizar
+                </Button>
               </Paper>
-            </Grid>
-          </Grid>
+            )}
+          </Box>
         )}
 
-        {/* Tab 2 - Herramientas */}
+        {/* TAB 1: Estadísticas */}
         {tabValue === 1 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  🛠️ Herramientas del Técnico de {user?.departamento}
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-                
-                <Grid container spacing={2}>
-                  {herramientas.map((herramienta, index) => (
-                    <Grid item xs={12} sm={6} md={3} key={index}>
-                      <Card 
-                        sx={{ 
-                          p: 2, 
-                          textAlign: 'center', 
-                          cursor: 'pointer',
-                          '&:hover': { elevation: 4, transform: 'translateY(-2px)' },
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <Typography variant="h3" sx={{ mb: 1 }}>
-                          {herramienta.icono}
-                        </Typography>
-                        <Typography variant="h6" gutterBottom>
-                          {herramienta.nombre}
-                        </Typography>
-                        <Chip 
-                          label={herramienta.disponible ? "Disponible" : "No Disponible"}
-                          color={herramienta.disponible ? "success" : "error"}
-                          size="small"
-                        />
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Paper>
+          <Box>
+            <Typography variant="h5" gutterBottom>
+              Estadísticas de Rendimiento
+            </Typography>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Resumen de Trabajo
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemText
+                        primary="Total de reportes asignados"
+                        secondary={estadisticas.total_asignados || 0}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes resueltos"
+                        secondary={estadisticas.resueltos || 0}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Promedio de días de resolución"
+                        secondary={estadisticas.promedio_dias_resolucion ? 
+                          `${parseFloat(estadisticas.promedio_dias_resolucion).toFixed(1)} días` : 
+                          'No disponible'
+                        }
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes críticos atendidos"
+                        secondary={estadisticas.criticos || 0}
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Estado Actual
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <ScheduleIcon color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Pendientes de iniciar"
+                        secondary={`${estadisticas.pendientes || 0} reportes`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <WarningIcon color="warning" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="En proceso"
+                        secondary={`${estadisticas.en_proceso || 0} reportes`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <PauseIcon color="error" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Pendientes de materiales"
+                        secondary={`${estadisticas.pendiente_materiales || 0} reportes`}
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
+              </Grid>
             </Grid>
-          </Grid>
+          </Box>
         )}
 
-        {/* Footer Info */}
-        <Box mt={4} p={2} bgcolor="warning.50" borderRadius={1} border="1px solid" borderColor="warning.200">
-          <Typography variant="body2" color="textSecondary" textAlign="center">
-            ⚡ <strong>Permisos de Técnico:</strong> Ver y gestionar reportes de {user?.departamento} | 
-            Cambiar estados de reportes | Subir evidencia | Comunicarse con líderes y ciudadanos |
-            <strong> NO puedes:</strong> Ver reportes de otros departamentos | Asignar reportes | Gestionar usuarios
+        {/* TAB 2: Herramientas */}
+        {tabValue === 2 && (
+          <Box>
+            <Typography variant="h5" gutterBottom>
+              Herramientas de Trabajo
+            </Typography>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ textAlign: 'center', p: 3 }}>
+                  <BuildIcon sx={{ fontSize: 50, color: 'primary.main', mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Lista de Materiales
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Materiales necesarios por tipo de problema
+                  </Typography>
+                  <Button variant="outlined" disabled>
+                    Próximamente
+                  </Button>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ textAlign: 'center', p: 3 }}>
+                  <CheckIcon sx={{ fontSize: 50, color: 'success.main', mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Checklist de Procedimientos
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Pasos para resolver cada tipo de problema
+                  </Typography>
+                  <Button variant="outlined" disabled>
+                    Próximamente
+                  </Button>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{ textAlign: 'center', p: 3 }}>
+                  <LocationIcon sx={{ fontSize: 50, color: 'warning.main', mb: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Mapa de Reportes
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    Ubicación de reportes pendientes
+                  </Typography>
+                  <Button variant="outlined" disabled>
+                    Próximamente
+                  </Button>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </Box>
+
+      {/* Modal Cambiar Estado */}
+      <Dialog open={openCambiarEstado} onClose={() => setOpenCambiarEstado(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Cambiar Estado del Reporte
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              <strong>Reporte:</strong> {selectedReporte?.titulo}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" gutterBottom>
+              Estado actual: <strong>{selectedReporte?.estado}</strong>
+            </Typography>
+            
+            <FormControl fullWidth sx={{ mt: 3, mb: 2 }}>
+              <InputLabel>Nuevo Estado</InputLabel>
+              <Select
+                value={nuevoEstado}
+                onChange={(e) => setNuevoEstado(e.target.value)}
+                label="Nuevo Estado"
+              >
+                {getEstadosPermitidos(selectedReporte?.estado).map((estado) => (
+                  <MenuItem key={estado} value={estado}>
+                    {estado}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Comentario (opcional)"
+              value={comentarioEstado}
+              onChange={(e) => setComentarioEstado(e.target.value)}
+              placeholder="Describe lo que has hecho o encontrado..."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCambiarEstado(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCambiarEstado}
+            variant="contained"
+            disabled={!nuevoEstado || loading}
+          >
+            {loading ? <CircularProgress size={20} /> : 'Cambiar Estado'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal Agregar Seguimiento */}
+      <Dialog open={openSeguimiento} onClose={() => setOpenSeguimiento(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Agregar Seguimiento
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              <strong>Reporte:</strong> {selectedReporte?.titulo}
+            </Typography>
+            
+            <TextField
+              fullWidth
+              multiline
+              rows={4}
+              label="Comentario *"
+              value={seguimientoData.comentario}
+              onChange={(e) => setSeguimientoData(prev => ({ ...prev, comentario: e.target.value }))}
+              placeholder="Describe el trabajo realizado, problemas encontrados, etc."
+              sx={{ mt: 2, mb: 2 }}
+              required
+            />
+
+            <TextField
+              fullWidth
+              label="Tiempo invertido (horas)"
+              type="number"
+              value={seguimientoData.tiempo_invertido_horas}
+              onChange={(e) => setSeguimientoData(prev => ({ ...prev, tiempo_invertido_horas: e.target.value }))}
+              sx={{ mb: 2 }}
+              inputProps={{ min: 0, step: 0.5 }}
+            />
+
+            <TextField
+              fullWidth
+              label="Acción tomada"
+              value={seguimientoData.accion_tomada}
+              onChange={(e) => setSeguimientoData(prev => ({ ...prev, accion_tomada: e.target.value }))}
+              placeholder="Ej: Revisión inicial, Reparación, Solicitud de materiales..."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenSeguimiento(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleAgregarSeguimiento}
+            variant="contained"
+            disabled={!seguimientoData.comentario || loading}
+          >
+            {loading ? <CircularProgress size={20} /> : 'Agregar Seguimiento'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal Historial */}
+      <Dialog open={openHistorial} onClose={() => setOpenHistorial(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Historial del Reporte
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            <strong>Reporte:</strong> {selectedReporte?.titulo}
           </Typography>
-        </Box>
+          
+          {historialReporte.length > 0 ? (
+            <List>
+              {historialReporte.map((evento, index) => (
+                <ListItem key={index} divider>
+                  <ListItemText
+                    primary={
+                      <Box>
+                        <Typography variant="body1">
+                          {evento.comentario || evento.accion_tomada || 'Cambio de estado'}
+                        </Typography>
+                        {evento.estado_anterior_nombre && evento.estado_nuevo_nombre && (
+                          <Typography variant="body2" color="primary">
+                            {evento.estado_anterior_nombre} → {evento.estado_nuevo_nombre}
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography variant="caption" color="textSecondary">
+                          {evento.usuario_seguimiento} - {new Date(evento.fecha_seguimiento).toLocaleString()}
+                        </Typography>
+                        {evento.tiempo_invertido_horas && (
+                          <Typography variant="caption" color="textSecondary" display="block">
+                            Tiempo: {evento.tiempo_invertido_horas} horas
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography variant="body2" color="textSecondary" textAlign="center" py={2}>
+              No hay historial disponible para este reporte.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenHistorial(false)}>
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar para notificaciones */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={cerrarSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={cerrarSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Footer Info */}
+      <Box mt={4} p={2} bgcolor="warning.50" borderRadius={1} border="1px solid" borderColor="warning.200">
+        <Typography variant="body2" color="textSecondary" textAlign="center">
+          <strong>Permisos de Técnico:</strong> Ver y gestionar reportes de tu departamento | 
+          Cambiar estados de reportes asignados | Subir evidencia | Comunicarse con líderes y ciudadanos |
+          <strong> NO puedes:</strong> Ver reportes de otros departamentos | Asignar reportes | Gestionar usuarios
+        </Typography>
       </Box>
     </Box>
   );
