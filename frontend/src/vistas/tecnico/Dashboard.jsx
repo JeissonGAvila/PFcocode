@@ -1,4 +1,4 @@
-// frontend/src/vistas/tecnico/Dashboard.jsx - COMPLETO Y FUNCIONAL
+// frontend/src/vistas/tecnico/Dashboard.jsx - CORREGIDO
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -55,7 +55,7 @@ import LogoutButton from '../../components/common/LogoutButton.jsx';
 import tecnicoService, { estadosPermitidosTecnico, coloresEstados, tiposSeguimiento } from '../../services/tecnico/tecnicoService.js';
 
 const DashboardTecnico = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isTecnico } = useAuth();
   
   // Estados principales
   const [tabValue, setTabValue] = useState(0);
@@ -83,18 +83,36 @@ const DashboardTecnico = () => {
   // Estados para notificaciones
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  // Cargar datos iniciales
+  // Verificación de autenticación y tipo de usuario
   useEffect(() => {
+    if (!isAuthenticated) {
+      setError('No estás autenticado. Redirigiendo al login...');
+      return;
+    }
+
+    if (!isTecnico()) {
+      setError('No tienes permisos de técnico. Contacta al administrador.');
+      return;
+    }
+
+    if (!user?.id) {
+      setError('No se pudo obtener tu información de usuario. Intenta cerrar sesión e iniciar nuevamente.');
+      return;
+    }
+
+    // Si todo está bien, cargar los datos
     cargarDatos();
-  }, []);
+  }, [isAuthenticated, user, isTecnico]);
 
   const cargarDatos = async () => {
     try {
       setLoading(true);
       setError('');
       
-      // Para pruebas, usaremos el ID del primer técnico de energía
-      const tecnicoId = 1; // Cambiar por el ID real del técnico autenticado
+      // SOLUCIÓN: Usar el ID real del usuario autenticado
+      const tecnicoId = user.id;
+      
+      console.log(`Cargando datos para técnico ID: ${tecnicoId}, Departamento: ${user.departamento}`);
       
       const [reportesResponse, statsResponse] = await Promise.all([
         tecnicoService.getMisReportes(tecnicoId),
@@ -104,6 +122,9 @@ const DashboardTecnico = () => {
       if (reportesResponse.success) {
         setReportes(reportesResponse.reportes || []);
         setEstadisticas(reportesResponse.estadisticas || {});
+        console.log(`✅ Cargados ${reportesResponse.reportes?.length || 0} reportes`);
+      } else {
+        throw new Error(reportesResponse.error || 'Error al obtener reportes');
       }
       
       if (statsResponse.success) {
@@ -217,6 +238,27 @@ const DashboardTecnico = () => {
     setTabValue(newValue);
   };
 
+  // Verificaciones de seguridad antes de renderizar
+  if (!isAuthenticated) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <Alert severity="error">
+          No estás autenticado. Redirigiendo al login...
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (!isTecnico()) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <Alert severity="error">
+          No tienes permisos de técnico. Contacta al administrador.
+        </Alert>
+      </Box>
+    );
+  }
+
   if (loading && reportes.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" p={4}>
@@ -232,7 +274,7 @@ const DashboardTecnico = () => {
     <Box>
       {/* Header del Panel Técnico */}
       <Box 
-        bgcolor="success.main" 
+        bgcolor="warning.main" 
         color="white" 
         p={3}
         display="flex"
@@ -240,54 +282,28 @@ const DashboardTecnico = () => {
         alignItems="center"
       >
         <Box>
-          <Typography variant="h4" gutterBottom>
-            Panel Técnico
+          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <EngineeringIcon sx={{ fontSize: 40 }} /> Panel Técnico
           </Typography>
           <Typography variant="h6">
-            {user?.nombre} - {user?.departamento || 'Energía Eléctrica'}
+            Técnico: {user?.nombre || 'Usuario'}
           </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.9 }}>
-            Reportes asignados a tu departamento | {user?.correo}
+          <Typography variant="body1" sx={{ opacity: 0.9 }}>
+            Departamento: <strong>{user?.departamento || 'No especificado'}</strong> | 
+            ID: {user?.id} | {user?.correo}
           </Typography>
         </Box>
         
         <LogoutButton variant="text" />
       </Box>
 
-      {/* Sistema de Tabs */}
-      <Paper sx={{ borderRadius: 0 }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          variant="fullWidth"
-          sx={{
-            '& .MuiTab-root': {
-              minHeight: 64,
-              fontSize: '0.95rem',
-              fontWeight: 500
-            }
-          }}
-        >
-          <Tab 
-            label="Mis Reportes" 
-            icon={<ReporteIcon />}
-            iconPosition="start"
-          />
-          <Tab 
-            label="Estadísticas" 
-            icon={<ScheduleIcon />}
-            iconPosition="start"
-          />
-          <Tab 
-            label="Herramientas" 
-            icon={<BuildIcon />}
-            iconPosition="start"
-          />
-        </Tabs>
-      </Paper>
-
-      {/* Contenido de las Pestañas */}
+      {/* Contenido Principal */}
       <Box p={3}>
+        {/* Alerta de Departamento */}
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <strong>Acceso Restringido:</strong> Solo puedes ver y gestionar reportes del departamento de <strong>{user?.departamento}</strong>
+        </Alert>
+
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
@@ -297,17 +313,41 @@ const DashboardTecnico = () => {
           </Alert>
         )}
 
+        {/* Sistema de Tabs */}
+        <Paper sx={{ borderRadius: 2, mb: 3 }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange} 
+            variant="fullWidth"
+            sx={{
+              '& .MuiTab-root': {
+                minHeight: 64,
+                fontSize: '0.95rem',
+                fontWeight: 500
+              }
+            }}
+          >
+            <Tab 
+              label="Mis Reportes" 
+              icon={<ReporteIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label="Estadísticas" 
+              icon={<ScheduleIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label="Herramientas" 
+              icon={<BuildIcon />}
+              iconPosition="start"
+            />
+          </Tabs>
+        </Paper>
+
         {/* TAB 0: Mis Reportes */}
         {tabValue === 0 && (
           <Box>
-            {/* Alerta informativa */}
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
-                <strong>Panel Técnico:</strong> Solo ves reportes de tu departamento que han sido asignados por administradores. 
-                Puedes cambiar estados y agregar seguimiento.
-              </Typography>
-            </Alert>
-
             {/* Estadísticas rápidas */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
               <Grid item xs={12} sm={6} md={3}>
