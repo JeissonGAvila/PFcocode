@@ -1,4 +1,4 @@
-// backend/index.js - ACTUALIZADO manteniendo estructura original
+// backend/index.js - ACTUALIZADO con panel ciudadano
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -134,6 +134,16 @@ try {
   console.log('❌ Stack trace completo:', error.stack);
 }
 
+// 12. PANEL CIUDADANO - NUEVO CON GEOLOCALIZACIÓN
+try {
+  const ciudadanoReportesRoutes = require('./routes/ciudadano/reportesRoutes');
+  app.use('/api/ciudadano/reportes', ciudadanoReportesRoutes);
+  console.log('✅ Ciudadano Reportes routes cargadas - PANEL CIUDADANO CON GPS');
+} catch (error) {
+  console.log('❌ Error en ciudadano reportes:', error.message);
+  console.log('❌ Stack trace completo:', error.stack);
+}
+
 // Manejo de errores
 app.use((error, req, res, next) => {
   console.error('💥 ERROR:', error);
@@ -162,5 +172,6 @@ app.listen(PORT, () => {
   console.log('   - /api/estados-reporte/*');
   console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
   console.log('   🔧 - /api/tecnico/reportes/* ← PANEL TÉCNICO CORREGIDO');
-  console.log('✅ SERVIDOR FUNCIONANDO');
+  console.log('   📍 - /api/ciudadano/reportes/* ← PANEL CIUDADANO CON GPS');
+  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS');
 });

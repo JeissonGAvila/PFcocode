@@ -1,4 +1,4 @@
-// frontend/src/vistas/ciudadano/Dashboard.jsx
+// frontend/src/vistas/ciudadano/Dashboard.jsx - COMPLETO CON GEOLOCALIZACIÓN
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -7,229 +7,324 @@ import {
   Card,
   CardContent,
   Button,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Chip,
-  Paper,
-  Divider,
-  Avatar,
-  Alert,
-  Tab,
-  Tabs,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
   MenuItem,
+  Alert,
+  Snackbar,
+  CircularProgress,
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Paper,
+  Divider,
   LinearProgress,
-  Stepper,
-  Step,
-  StepLabel,
+  Tabs,
+  Tab,
+  IconButton,
+  Tooltip,
   Badge
 } from '@mui/material';
 import {
   Person as PersonIcon,
   Add as AddIcon,
-  Assignment as ReporteIcon,
-  Visibility as ViewIcon,
-  Edit as EditIcon,
-  Notifications as NotificationsIcon,
   LocationOn as LocationIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  Home as HomeIcon,
-  CheckCircle as CheckIcon,
-  Schedule as ScheduleIcon,
+  MyLocation as GPSIcon,
+  Map as MapIcon,
+  Assignment as ReporteIcon,
+  Comment as CommentIcon,
+  Timeline as TimelineIcon,
+  Refresh as RefreshIcon,
+  Notifications as NotificationsIcon,
+  Edit as EditIcon,
+  Check as CheckIcon,
   Warning as WarningIcon,
-  TrendingUp as TrendingIcon,
-  Camera as CameraIcon,
-  Send as SendIcon,
-  Star as StarIcon,
-  ThumbUp as ThumbUpIcon
+  Info as InfoIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
+import ciudadanoService, { geoUtils, estadosReporteCiudadano, prioridadesReporte } from '../../services/ciudadano/ciudadanoService.js';
 
 const DashboardCiudadano = () => {
-  const { user } = useAuth();
-  const [tabValue, setTabValue] = useState(0);
-  const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
-  const [openPerfil, setOpenPerfil] = useState(false);
+  const { user, isAuthenticated, isCiudadano } = useAuth();
   
-  // Estadísticas personales del ciudadano
-  const [statsPersonales, setStatsPersonales] = useState({
-    reportesCreados: 5,
-    reportesActivos: 2,
-    reportesResueltos: 3,
-    tiempoPromedioRespuesta: '3.2 días',
-    satisfaccionPromedio: 4.2,
-    puntosParticipacion: 85
+  // Estados principales
+  const [tabValue, setTabValue] = useState(0);
+  const [misReportes, setMisReportes] = useState([]);
+  const [tiposProblema, setTiposProblema] = useState([]);
+  const [estadisticas, setEstadisticas] = useState({
+    total_creados: 0,
+    nuevos: 0,
+    en_progreso: 0,
+    resueltos: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Reportes del ciudadano
-  const [misReportes, setMisReportes] = useState([
-    {
-      id: 1,
-      numero: 'RPT-2025-012',
-      titulo: 'Bache en mi calle',
-      descripcion: 'Hay un bache grande frente a mi casa que afecta el tránsito',
-      direccion: '5ta Calle 8-20, Zona 1',
-      estado: 'En Proceso',
-      prioridad: 'Media',
-      tipo: 'Infraestructura',
-      fechaCreacion: '2025-01-05',
-      tecnicoAsignado: 'Ing. Pedro García',
-      ultimaActualizacion: '2025-01-07',
-      progreso: 60,
-      comentarios: 3,
-      calificacion: null
-    },
-    {
-      id: 2,
-      numero: 'RPT-2025-018',
-      titulo: 'Falta de alumbrado',
-      descripcion: 'No hay luz en el parque cerca de mi casa',
-      direccion: 'Parque Las Flores, Zona 1',
-      estado: 'Resuelto',
-      prioridad: 'Baja',
-      tipo: 'Alumbrado Público',
-      fechaCreacion: '2024-12-28',
-      fechaResolucion: '2025-01-02',
-      tecnicoAsignado: 'Téc. Carlos López',
-      progreso: 100,
-      comentarios: 1,
-      calificacion: 5
-    },
-    {
-      id: 3,
-      numero: 'RPT-2025-020',
-      titulo: 'Problema con drenaje',
-      descripcion: 'El drenaje se desborda cuando llueve',
-      direccion: '3ra Avenida 12-15, Zona 1',
-      estado: 'Nuevo',
-      prioridad: 'Alta',
-      tipo: 'Drenajes',
-      fechaCreacion: '2025-01-08',
-      progreso: 10,
-      comentarios: 0,
-      calificacion: null
-    }
-  ]);
+  // Estados para modales
+  const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
+  const [openComentario, setOpenComentario] = useState(false);
+  const [selectedReporte, setSelectedReporte] = useState(null);
 
-  // Reportes populares de la zona (solo lectura)
-  const [reportesPopulares] = useState([
-    { titulo: 'Mejora del parque central', votos: 23, estado: 'En Proceso' },
-    { titulo: 'Semáforo en avenida principal', votos: 18, estado: 'Nuevo' },
-    { titulo: 'Ampliación de aceras', votos: 15, estado: 'En Revisión' }
-  ]);
-
-  // Formulario nuevo reporte
-  const [nuevoReporte, setNuevoReporte] = useState({
+  // Estados para formulario de reporte
+  const [formData, setFormData] = useState({
     titulo: '',
     descripcion: '',
     direccion: '',
-    tipo: '',
+    id_tipo_problema: '',
     prioridad: 'Media'
   });
 
-  const tiposProblema = [
-    'Infraestructura',
-    'Energía Eléctrica', 
-    'Agua Potable',
-    'Drenajes',
-    'Alumbrado Público',
-    'Recolección de Basura',
-    'Seguridad',
-    'Medio Ambiente'
-  ];
+  // Estados para geolocalización
+  const [ubicacion, setUbicacion] = useState({
+    lat: null,
+    lng: null,
+    direccion_aproximada: '',
+    metodo: 'manual',
+    precision: null,
+    obteniendo: false
+  });
 
-  const getEstadoColor = (estado) => {
-    switch (estado) {
-      case 'Nuevo': return 'info';
-      case 'En Revisión': return 'warning';
-      case 'Asignado': return 'primary';
-      case 'En Proceso': return 'warning';
-      case 'Resuelto': return 'success';
-      case 'Cerrado': return 'default';
-      default: return 'default';
+  const [comentario, setComentario] = useState('');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Verificación de autenticación
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setError('No estás autenticado. Redirigiendo al login...');
+      return;
     }
+
+    if (!isCiudadano()) {
+      setError('No tienes permisos de ciudadano. Contacta al administrador.');
+      return;
+    }
+
+    cargarDatos();
+  }, [isAuthenticated, user, isCiudadano]);
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const [reportesResponse, datosResponse] = await Promise.all([
+        ciudadanoService.getMisReportes(),
+        ciudadanoService.getDatosFormulario()
+      ]);
+      
+      if (reportesResponse.success) {
+        setMisReportes(reportesResponse.reportes || []);
+        setEstadisticas(reportesResponse.ciudadano?.estadisticas || {});
+      }
+      
+      if (datosResponse.success) {
+        setTiposProblema(datosResponse.tipos_problema || []);
+      }
+      
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setError(error.message);
+      mostrarSnackbar('Error al cargar datos: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mostrarSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const cerrarSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  // Funciones de geolocalización
+  const obtenerUbicacionGPS = async () => {
+    try {
+      setUbicacion(prev => ({ ...prev, obteniendo: true }));
+      
+      const ubicacionGPS = await geoUtils.obtenerUbicacionGPS();
+      
+      // Intentar obtener dirección aproximada
+      try {
+        const direccionData = await geoUtils.coordenadasADireccion(ubicacionGPS.lat, ubicacionGPS.lng);
+        ubicacionGPS.direccion_aproximada = direccionData.direccion_completa;
+      } catch (error) {
+        console.warn('No se pudo obtener dirección aproximada:', error);
+      }
+      
+      setUbicacion({
+        lat: ubicacionGPS.lat,
+        lng: ubicacionGPS.lng,
+        direccion_aproximada: ubicacionGPS.direccion_aproximada || `${ubicacionGPS.lat.toFixed(6)}, ${ubicacionGPS.lng.toFixed(6)}`,
+        metodo: 'gps',
+        precision: ubicacionGPS.precision,
+        obteniendo: false
+      });
+      
+      mostrarSnackbar('Ubicación GPS obtenida exitosamente', 'success');
+      
+    } catch (error) {
+      setUbicacion(prev => ({ ...prev, obteniendo: false }));
+      mostrarSnackbar(error.message, 'warning');
+    }
+  };
+
+  const limpiarUbicacion = () => {
+    setUbicacion({
+      lat: null,
+      lng: null,
+      direccion_aproximada: '',
+      metodo: 'manual',
+      precision: null,
+      obteniendo: false
+    });
+  };
+
+  // Funciones de formulario
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const abrirModalNuevoReporte = () => {
+    setFormData({
+      titulo: '',
+      descripcion: '',
+      direccion: '',
+      id_tipo_problema: '',
+      prioridad: 'Media'
+    });
+    limpiarUbicacion();
+    setOpenNuevoReporte(true);
+  };
+
+  const abrirModalComentario = (reporte) => {
+    setSelectedReporte(reporte);
+    setComentario('');
+    setOpenComentario(true);
+  };
+
+  const cerrarModales = () => {
+    setOpenNuevoReporte(false);
+    setOpenComentario(false);
+    setSelectedReporte(null);
+    setComentario('');
+  };
+
+  // Funciones de acción
+  const handleCrearReporte = async () => {
+    try {
+      // Validaciones
+      if (!formData.titulo || !formData.descripcion || !formData.direccion || !formData.id_tipo_problema) {
+        mostrarSnackbar('Por favor completa todos los campos requeridos', 'error');
+        return;
+      }
+
+      if (formData.direccion.length < 10) {
+        mostrarSnackbar('La dirección debe ser más específica (mínimo 10 caracteres)', 'error');
+        return;
+      }
+
+      setLoading(true);
+
+      const reporteData = {
+        ...formData,
+        ubicacion_lat: ubicacion.lat,
+        ubicacion_lng: ubicacion.lng,
+        metodo_ubicacion: ubicacion.metodo,
+        precision_metros: ubicacion.precision
+      };
+
+      const response = await ciudadanoService.crearReporte(reporteData);
+      
+      if (response.success) {
+        mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente`, 'success');
+        cerrarModales();
+        cargarDatos();
+      }
+
+    } catch (error) {
+      mostrarSnackbar(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAgregarComentario = async () => {
+    try {
+      if (!comentario.trim() || comentario.length < 5) {
+        mostrarSnackbar('El comentario debe tener al menos 5 caracteres', 'error');
+        return;
+      }
+
+      setLoading(true);
+      await ciudadanoService.agregarComentario(selectedReporte.id, comentario);
+      mostrarSnackbar('Comentario agregado exitosamente', 'success');
+      cerrarModales();
+      cargarDatos();
+
+    } catch (error) {
+      mostrarSnackbar(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funciones auxiliares
+  const getEstadoInfo = (estado) => {
+    return estadosReporteCiudadano[estado] || { color: 'default', descripcion: estado, progreso: 0 };
   };
 
   const getPrioridadColor = (prioridad) => {
-    switch (prioridad) {
-      case 'Alta': return 'error';
-      case 'Media': return 'warning';
-      case 'Baja': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const getEstadoStep = (estado) => {
-    switch (estado) {
-      case 'Nuevo': return 0;
-      case 'En Revisión': return 1;
-      case 'Asignado': return 2;
-      case 'En Proceso': return 3;
-      case 'Resuelto': return 4;
-      default: return 0;
-    }
+    const prioridadObj = prioridadesReporte.find(p => p.value === prioridad);
+    return prioridadObj ? prioridadObj.color : 'default';
   };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
 
-  const handleNuevoReporteSubmit = () => {
-    if (!nuevoReporte.titulo || !nuevoReporte.descripcion || !nuevoReporte.tipo) {
-      return;
-    }
-
-    const reporte = {
-      id: Date.now(),
-      numero: `RPT-2025-${String(Date.now()).slice(-3)}`,
-      ...nuevoReporte,
-      estado: 'Nuevo',
-      fechaCreacion: new Date().toISOString().split('T')[0],
-      progreso: 5,
-      comentarios: 0,
-      calificacion: null
-    };
-
-    setMisReportes(prev => [reporte, ...prev]);
-    setNuevoReporte({ titulo: '', descripcion: '', direccion: '', tipo: '', prioridad: 'Media' });
-    setOpenNuevoReporte(false);
-    
-    // Actualizar estadísticas
-    setStatsPersonales(prev => ({
-      ...prev,
-      reportesCreados: prev.reportesCreados + 1,
-      reportesActivos: prev.reportesActivos + 1
-    }));
-  };
-
-  const handleCalificarServicio = (reporteId, calificacion) => {
-    setMisReportes(prev =>
-      prev.map(reporte =>
-        reporte.id === reporteId
-          ? { ...reporte, calificacion }
-          : reporte
-      )
+  // Verificaciones de seguridad
+  if (!isAuthenticated) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <Alert severity="error">
+          No estás autenticado. Redirigiendo al login...
+        </Alert>
+      </Box>
     );
-    console.log(`Reporte ${reporteId} calificado con ${calificacion} estrellas`);
-  };
+  }
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <StarIcon
-        key={i}
-        fontSize="small"
-        color={i < rating ? 'warning' : 'disabled'}
-      />
-    ));
-  };
+  if (!isCiudadano()) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <Alert severity="error">
+          No tienes permisos de ciudadano. Contacta al administrador.
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (loading && misReportes.length === 0) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Cargando tus reportes...
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -247,16 +342,16 @@ const DashboardCiudadano = () => {
             <PersonIcon sx={{ fontSize: 40 }} /> Panel Ciudadano
           </Typography>
           <Typography variant="h6">
-            {user?.nombre}
+            {user?.nombre || 'Ciudadano'}
           </Typography>
           <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            Zona: <strong>{user?.zona || 'Zona 1 Centro'}</strong> | 
+            Zona: <strong>{user?.zona || 'Zona 1'}</strong> | 
             Participación Activa | {user?.correo}
           </Typography>
         </Box>
         
         <Box display="flex" alignItems="center" gap={2}>
-          <Badge badgeContent={2} color="warning">
+          <Badge badgeContent={estadisticas.nuevos || 0} color="warning">
             <NotificationsIcon />
           </Badge>
           <LogoutButton variant="text" />
@@ -267,654 +362,552 @@ const DashboardCiudadano = () => {
       <Box p={3}>
         {/* Bienvenida personalizada */}
         <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>👋 ¡Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
+          <strong>¡Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes con ubicación GPS, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
         </Alert>
 
-        {/* Estadísticas Personales */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ReporteIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="primary">
-                  {statsPersonales.reportesCreados}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Mis Reportes
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+            <Button onClick={cargarDatos} sx={{ ml: 2 }}>
+              Reintentar
+            </Button>
+          </Alert>
+        )}
 
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ScheduleIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="warning.main">
-                  {statsPersonales.reportesActivos}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  En Proceso
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="success.main">
-                  {statsPersonales.reportesResueltos}
-                </Typography>
-                <Typography color="textSecondary" variant="body2">
-                  Resueltos
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" gutterBottom>
-                  ⭐ Satisfacción
-                </Typography>
-                <Box display="flex" justifyContent="center" mb={1}>
-                  {renderStars(Math.floor(statsPersonales.satisfaccionPromedio))}
-                </Box>
-                <Typography variant="h5" color="warning.main">
-                  {statsPersonales.satisfaccionPromedio}/5
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" gutterBottom>
-                  🏆 Participación
-                </Typography>
-                <Typography variant="h4" color="info.main" gutterBottom>
-                  {statsPersonales.puntosParticipacion}
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={statsPersonales.puntosParticipacion} 
-                  color="info"
-                />
-                <Typography variant="body2" color="textSecondary">
-                  Ciudadano Activo
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* Botón principal para crear reporte */}
-        <Box textAlign="center" mb={4}>
-          <Button
-            size="large"
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setOpenNuevoReporte(true)}
-            sx={{ 
-              py: 2, 
-              px: 4, 
-              fontSize: '1.1rem',
-              borderRadius: 3,
-              boxShadow: 3
+        {/* Sistema de Tabs */}
+        <Paper sx={{ borderRadius: 2, mb: 3 }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange} 
+            variant="fullWidth"
+            sx={{
+              '& .MuiTab-root': {
+                minHeight: 64,
+                fontSize: '0.95rem',
+                fontWeight: 500
+              }
             }}
           >
-            ✨ Crear Nuevo Reporte
-          </Button>
-        </Box>
-
-        {/* Tabs para organizar contenido */}
-        <Paper sx={{ mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="📋 Mis Reportes" />
-            <Tab label="🌟 Reportes Populares" />
-            <Tab label="👤 Mi Perfil" />
+            <Tab 
+              label="Crear Reporte" 
+              icon={<AddIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label="Mis Reportes" 
+              icon={<ReporteIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label="Mi Actividad" 
+              icon={<TimelineIcon />}
+              iconPosition="start"
+            />
           </Tabs>
         </Paper>
 
-        {/* Tab 1 - Mis Reportes */}
+        {/* TAB 0: Crear Reporte */}
         {tabValue === 0 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} lg={8}>
-              {misReportes.map((reporte) => (
-                <Card key={reporte.id} sx={{ mb: 3, position: 'relative' }}>
-                  <CardContent>
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                      <Box flex={1}>
-                        <Typography variant="h6" gutterBottom>
-                          {reporte.titulo}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary" gutterBottom>
-                          #{reporte.numero} | {reporte.fechaCreacion} | {reporte.tipo}
-                        </Typography>
-                        <Typography variant="body1" gutterBottom>
-                          {reporte.descripcion}
-                        </Typography>
-                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                          <LocationIcon fontSize="small" /> {reporte.direccion}
-                        </Typography>
-                        {reporte.tecnicoAsignado && (
-                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <PersonIcon fontSize="small" /> Técnico: {reporte.tecnicoAsignado}
-                          </Typography>
-                        )}
-                      </Box>
-                      
-                      <Box sx={{ ml: 2, textAlign: 'right' }}>
-                        <Chip 
-                          label={reporte.estado}
-                          color={getEstadoColor(reporte.estado)}
-                          sx={{ mb: 1, display: 'block' }}
-                        />
-                        <Chip 
-                          label={reporte.prioridad}
-                          color={getPrioridadColor(reporte.prioridad)}
-                          size="small"
-                        />
-                      </Box>
-                    </Box>
+          <Box>
+            <Grid container spacing={3}>
+              <Grid item xs={12} lg={8}>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Crear Nuevo Reporte
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                    Describe el problema de tu comunidad. Tu reporte será revisado por el líder COCODE antes de ser asignado a un técnico.
+                  </Typography>
 
-                    {/* Progreso del reporte */}
-                    <Box mb={2}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography variant="body2">
-                          Progreso: {reporte.progreso}%
-                        </Typography>
-                        {reporte.comentarios > 0 && (
-                          <Chip
-                            label={`${reporte.comentarios} comentarios`}
-                            size="small"
-                            icon={<NotificationsIcon />}
-                          />
-                        )}
-                      </Box>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={reporte.progreso} 
-                        color={reporte.estado === 'Resuelto' ? 'success' : 'primary'}
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Título del Problema *"
+                        name="titulo"
+                        value={formData.titulo}
+                        onChange={handleInputChange}
+                        placeholder="Ej: Falta de agua potable en mi cuadra"
+                        required
                       />
-                    </Box>
+                    </Grid>
 
-                    {/* Stepper de estados */}
-                    <Box mb={2}>
-                      <Stepper activeStep={getEstadoStep(reporte.estado)} alternativeLabel>
-                        <Step>
-                          <StepLabel>Nuevo</StepLabel>
-                        </Step>
-                        <Step>
-                          <StepLabel>En Revisión</StepLabel>
-                        </Step>
-                        <Step>
-                          <StepLabel>Asignado</StepLabel>
-                        </Step>
-                        <Step>
-                          <StepLabel>En Proceso</StepLabel>
-                        </Step>
-                        <Step>
-                          <StepLabel>Resuelto</StepLabel>
-                        </Step>
-                      </Stepper>
-                    </Box>
-
-                    <Divider sx={{ mb: 2 }} />
-
-                    {/* Acciones del reporte */}
-                    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<ViewIcon />}
-                      >
-                        Ver Detalles
-                      </Button>
-                      
-                      {reporte.comentarios > 0 && (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<NotificationsIcon />}
-                          color="warning"
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth required>
+                        <InputLabel>Tipo de Problema</InputLabel>
+                        <Select
+                          name="id_tipo_problema"
+                          value={formData.id_tipo_problema}
+                          onChange={handleInputChange}
+                          label="Tipo de Problema"
                         >
-                          Ver Actualizaciones
-                        </Button>
-                      )}
-
-                      {reporte.estado === 'Resuelto' && !reporte.calificacion && (
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <Typography variant="body2">Calificar:</Typography>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <StarIcon
-                              key={star}
-                              fontSize="small"
-                              sx={{ 
-                                cursor: 'pointer',
-                                color: 'grey.400',
-                                '&:hover': { color: 'warning.main' }
-                              }}
-                              onClick={() => handleCalificarServicio(reporte.id, star)}
-                            />
+                          {tiposProblema.map((tipo) => (
+                            <MenuItem key={tipo.id} value={tipo.id}>
+                              {tipo.nombre} - {tipo.departamento_responsable}
+                            </MenuItem>
                           ))}
-                        </Box>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Prioridad</InputLabel>
+                        <Select
+                          name="prioridad"
+                          value={formData.prioridad}
+                          onChange={handleInputChange}
+                          label="Prioridad"
+                        >
+                          {prioridadesReporte.map((prioridad) => (
+                            <MenuItem key={prioridad.value} value={prioridad.value}>
+                              {prioridad.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={4}
+                        label="Descripción Detallada *"
+                        name="descripcion"
+                        value={formData.descripcion}
+                        onChange={handleInputChange}
+                        placeholder="Describe detalladamente el problema, cuándo empezó, a quiénes afecta, etc."
+                        required
+                      />
+                    </Grid>
+
+                    {/* SECCIÓN DE UBICACIÓN CON GPS */}
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+                        Ubicación del Problema
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Box display="flex" gap={2} mb={2}>
+                        <Button
+                          variant="outlined"
+                          startIcon={ubicacion.obteniendo ? <CircularProgress size={16} /> : <GPSIcon />}
+                          onClick={obtenerUbicacionGPS}
+                          disabled={ubicacion.obteniendo || !geoUtils.soportaGeolocalizacion()}
+                          color={ubicacion.lat ? 'success' : 'primary'}
+                        >
+                          {ubicacion.obteniendo ? 'Obteniendo...' : 
+                           ubicacion.lat ? 'GPS Obtenido' : 'Usar mi ubicación GPS'}
+                        </Button>
+                        
+                        {ubicacion.lat && (
+                          <Button
+                            variant="outlined"
+                            color="warning"
+                            onClick={limpiarUbicacion}
+                          >
+                            Limpiar GPS
+                          </Button>
+                        )}
+                      </Box>
+
+                      {ubicacion.lat && (
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                          <Typography variant="body2">
+                            <strong>Ubicación GPS:</strong> {ubicacion.lat.toFixed(6)}, {ubicacion.lng.toFixed(6)}
+                            {ubicacion.precision && ` (Precisión: ${Math.round(ubicacion.precision)}m)`}
+                          </Typography>
+                          {ubicacion.direccion_aproximada && (
+                            <Typography variant="body2">
+                              <strong>Dirección aproximada:</strong> {ubicacion.direccion_aproximada}
+                            </Typography>
+                          )}
+                        </Alert>
                       )}
 
-                      {reporte.calificacion && (
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <Typography variant="body2">Mi calificación:</Typography>
-                          {renderStars(reporte.calificacion)}
-                        </Box>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
+                      <TextField
+                        fullWidth
+                        label="Dirección Exacta *"
+                        name="direccion"
+                        value={formData.direccion}
+                        onChange={handleInputChange}
+                        placeholder="Ej: 3a Calle 4-15, Zona 1, Colonia Centro"
+                        required
+                        helperText="Proporciona la dirección más específica posible para que el técnico pueda ubicar el problema"
+                      />
+                    </Grid>
 
-              {misReportes.length === 0 && (
-                <Paper sx={{ p: 6, textAlign: 'center' }}>
-                  <ReporteIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
-                  <Typography variant="h6" color="textSecondary" gutterBottom>
-                    No has creado reportes aún
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary" mb={3}>
-                    ¡Crea tu primer reporte y ayuda a mejorar tu comunidad!
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => setOpenNuevoReporte(true)}
-                  >
-                    Crear Mi Primer Reporte
-                  </Button>
+                    <Grid item xs={12}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        size="large"
+                        onClick={handleCrearReporte}
+                        disabled={loading || !formData.titulo || !formData.descripcion || !formData.direccion || !formData.id_tipo_problema}
+                        sx={{ mt: 2 }}
+                      >
+                        {loading ? <CircularProgress size={24} /> : 'Crear Reporte'}
+                      </Button>
+                    </Grid>
+                  </Grid>
                 </Paper>
-              )}
-            </Grid>
+              </Grid>
 
-            {/* Panel lateral con información */}
-            <Grid item xs={12} lg={4}>
-              <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  ⚡ Acciones Rápidas
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box display="flex" flexDirection="column" gap={1}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={() => setOpenNuevoReporte(true)}
-                  >
-                    Nuevo Reporte
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<EditIcon />}
-                    onClick={() => setOpenPerfil(true)}
-                  >
-                    Editar Perfil
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<NotificationsIcon />}
-                  >
-                    Mis Notificaciones
-                  </Button>
-                </Box>
-              </Paper>
+              <Grid item xs={12} lg={4}>
+                <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Consejos Importantes
+                  </Typography>
+                  <List dense>
+                    <ListItem>
+                      <ListItemIcon>
+                        <GPSIcon color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Usa GPS para mayor precisión"
+                        secondary="La ubicación GPS ayuda al técnico a encontrar el problema más rápido"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <LocationIcon color="warning" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Sé específico con la dirección"
+                        secondary="Incluye puntos de referencia y detalles de ubicación"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <InfoIcon color="info" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Describe claramente"
+                        secondary="Mientras más detalles, mejor será la atención"
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
 
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  💡 Consejos
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <List dense>
-                  <ListItem>
-                    <ListItemText
-                      primary="Sé específico"
-                      secondary="Describe detalladamente el problema y su ubicación"
-                    />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemText
-                      primary="Incluye fotos"
-                      secondary="Las imágenes ayudan a resolver más rápido"
-                    />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemText
-                      primary="Califica el servicio"
-                      secondary="Tu opinión nos ayuda a mejorar"
-                    />
-                  </ListItem>
-                </List>
-              </Paper>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Estadísticas Personales
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Card>
+                        <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                          <Typography variant="h6" color="primary">
+                            {estadisticas.total_creados || 0}
+                          </Typography>
+                          <Typography variant="caption">
+                            Total Creados
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Card>
+                        <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                          <Typography variant="h6" color="success.main">
+                            {estadisticas.resueltos || 0}
+                          </Typography>
+                          <Typography variant="caption">
+                            Resueltos
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
             </Grid>
-          </Grid>
+          </Box>
         )}
 
-        {/* Tab 2 - Reportes Populares */}
+        {/* TAB 1: Mis Reportes */}
         {tabValue === 1 && (
           <Box>
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <strong>🌟 Reportes Populares de tu Zona:</strong> Estos son los reportes que más apoyo tienen de otros ciudadanos
-            </Alert>
-            
-            <Grid container spacing={2}>
-              {reportesPopulares.map((reporte, index) => (
-                <Grid item xs={12} md={6} lg={4} key={index}>
-                  <Card>
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                        <Typography variant="h6" flex={1}>
-                          {reporte.titulo}
-                        </Typography>
-                        <Chip 
-                          label={reporte.estado}
-                          color={getEstadoColor(reporte.estado)}
-                          size="small"
-                        />
-                      </Box>
-                      
-                      <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <ThumbUpIcon color="primary" fontSize="small" />
-                          <Typography variant="body2">
-                            {reporte.votos} ciudadanos apoyan
-                          </Typography>
-                        </Box>
-                        
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<ThumbUpIcon />}
-                        >
-                          Apoyar
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        )}
-
-        {/* Tab 3 - Mi Perfil */}
-        {tabValue === 2 && (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  👤 Información Personal
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-                
-                <Box display="flex" alignItems="center" mb={3}>
-                  <Avatar 
-                    sx={{ 
-                      width: 80, 
-                      height: 80, 
-                      bgcolor: 'info.main',
-                      fontSize: '2rem',
-                      mr: 3
-                    }}
-                  >
-                    {user?.nombre?.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h5">
-                      {user?.nombre}
-                    </Typography>
-                    <Typography variant="body1" color="textSecondary">
-                      Ciudadano Activo
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Miembro desde: Diciembre 2024
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <List>
-                  <ListItem>
-                    <ListItemIcon>
-                      <EmailIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Correo Electrónico"
-                      secondary={user?.correo}
-                    />
-                  </ListItem>
-                  
-                  <ListItem>
-                    <ListItemIcon>
-                      <HomeIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Zona de Residencia"
-                      secondary={user?.zona || 'Zona 1 Centro'}
-                    />
-                  </ListItem>
-                  
-                  <ListItem>
-                    <ListItemIcon>
-                      <TrendingIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Nivel de Participación"
-                      secondary="Ciudadano Activo - 85 puntos"
-                    />
-                  </ListItem>
-                </List>
-
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<EditIcon />}
-                  onClick={() => setOpenPerfil(true)}
-                  sx={{ mt: 2 }}
-                >
-                  Editar Perfil
-                </Button>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  📊 Mi Actividad
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
-                
-                <Box mb={3}>
-                  <Typography variant="body2" color="textSecondary">
-                    Tiempo promedio de respuesta
-                  </Typography>
-                  <Typography variant="h4" color="primary">
-                    {statsPersonales.tiempoPromedioRespuesta}
-                  </Typography>
-                </Box>
-
-                <Box mb={3}>
-                  <Typography variant="body2" color="textSecondary" mb={1}>
-                    Satisfacción con el servicio
-                  </Typography>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {renderStars(Math.floor(statsPersonales.satisfaccionPromedio))}
-                    <Typography variant="h6">
-                      {statsPersonales.satisfaccionPromedio}/5
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Alert severity="success">
-                  ¡Gracias por ser un ciudadano activo y comprometido con tu comunidad!
-                </Alert>
-              </Paper>
-            </Grid>
-          </Grid>
-        )}
-
-        {/* Footer Info */}
-        <Box mt={4} p={2} bgcolor="info.50" borderRadius={1} border="1px solid" borderColor="info.200">
-          <Typography variant="body2" color="textSecondary" textAlign="center">
-            👤 <strong>Permisos de Ciudadano:</strong> Crear y hacer seguimiento a tus reportes | 
-            Calificar servicios recibidos | Ver reportes populares de tu zona | Actualizar tu perfil |
-            <strong> NO puedes:</strong> Ver reportes de otros ciudadanos | Cambiar estados | Gestionar usuarios | Acceder a configuraciones
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* Dialog para nuevo reporte */}
-      <Dialog open={openNuevoReporte} onClose={() => setOpenNuevoReporte(false)} maxWidth="md" fullWidth>
-        <DialogTitle>📝 Crear Nuevo Reporte</DialogTitle>
-        <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2} mt={1}>
-            <TextField
-              fullWidth
-              label="Título del Problema"
-              variant="outlined"
-              value={nuevoReporte.titulo}
-              onChange={(e) => setNuevoReporte(prev => ({ ...prev, titulo: e.target.value }))}
-              placeholder="Ej: Bache en mi calle"
-            />
-            
-            <TextField
-              fullWidth
-              select
-              label="Tipo de Problema"
-              value={nuevoReporte.tipo}
-              onChange={(e) => setNuevoReporte(prev => ({ ...prev, tipo: e.target.value }))}
-            >
-              {tiposProblema.map((tipo) => (
-                <MenuItem key={tipo} value={tipo}>
-                  {tipo}
-                </MenuItem>
-              ))}
-            </TextField>
-            
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Descripción Detallada"
-              variant="outlined"
-              value={nuevoReporte.descripcion}
-              onChange={(e) => setNuevoReporte(prev => ({ ...prev, descripcion: e.target.value }))}
-              placeholder="Describe el problema detalladamente..."
-            />
-            
-            <TextField
-              fullWidth
-              label="Ubicación/Dirección"
-              variant="outlined"
-              value={nuevoReporte.direccion}
-              onChange={(e) => setNuevoReporte(prev => ({ ...prev, direccion: e.target.value }))}
-              placeholder="Dirección exacta del problema"
-            />
-            
-            <TextField
-              fullWidth
-              select
-              label="Prioridad"
-              value={nuevoReporte.prioridad}
-              onChange={(e) => setNuevoReporte(prev => ({ ...prev, prioridad: e.target.value }))}
-            >
-              <MenuItem value="Baja">Baja</MenuItem>
-              <MenuItem value="Media">Media</MenuItem>
-              <MenuItem value="Alta">Alta</MenuItem>
-            </TextField>
-
-            <Box>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h6">
+                Mis Reportes ({misReportes.length} total)
+              </Typography>
               <Button
                 variant="outlined"
-                startIcon={<CameraIcon />}
-                fullWidth
-                sx={{ mb: 1 }}
+                startIcon={<RefreshIcon />}
+                onClick={cargarDatos}
+                disabled={loading}
               >
-                Agregar Fotos del Problema
+                Actualizar
               </Button>
-              <Typography variant="caption" color="textSecondary">
-                Las fotos ayudan a resolver más rápido tu reporte
-              </Typography>
             </Box>
+
+            {misReportes.length > 0 ? (
+              <Grid container spacing={3}>
+                {misReportes.map((reporte) => {
+                  const estadoInfo = getEstadoInfo(reporte.estado);
+                  return (
+                    <Grid item xs={12} md={6} key={reporte.id}>
+                      <Card elevation={3}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                            <Typography variant="h6" gutterBottom>
+                              {reporte.titulo}
+                            </Typography>
+                            <Chip 
+                              label={reporte.estado}
+                              color={estadoInfo.color}
+                              size="small"
+                            />
+                          </Box>
+
+                          <Typography variant="body2" color="textSecondary" gutterBottom>
+                            <strong>#{reporte.numero_reporte}</strong> | {reporte.tipo_problema}
+                          </Typography>
+
+                          <Typography variant="body2" sx={{ mb: 2 }}>
+                            {reporte.descripcion.length > 100 ? 
+                              `${reporte.descripcion.substring(0, 100)}...` : 
+                              reporte.descripcion
+                            }
+                          </Typography>
+
+                          {/* Información de ubicación */}
+                          <Box display="flex" alignItems="center" mb={1}>
+                            <LocationIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
+                            <Typography variant="body2" color="textSecondary">
+                              {reporte.direccion}
+                            </Typography>
+                            {reporte.latitud && reporte.longitud && (
+                              <Tooltip title={`GPS: ${reporte.latitud}, ${reporte.longitud}`}>
+                                <GPSIcon fontSize="small" sx={{ ml: 1, color: 'success.main' }} />
+                              </Tooltip>
+                            )}
+                          </Box>
+
+                          {/* Progreso visual */}
+                          <Box sx={{ mb: 2 }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                              <Typography variant="caption" color="textSecondary">
+                                Progreso
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                {reporte.progreso_porcentaje || estadoInfo.progreso}%
+                              </Typography>
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={reporte.progreso_porcentaje || estadoInfo.progreso}
+                              color={estadoInfo.color}
+                            />
+                          </Box>
+
+                          <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 2 }}>
+                            {estadoInfo.descripcion}
+                          </Typography>
+
+                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Chip 
+                              label={`Prioridad: ${reporte.prioridad}`}
+                              color={getPrioridadColor(reporte.prioridad)}
+                              variant="outlined"
+                              size="small"
+                            />
+                            <Typography variant="caption" color="textSecondary">
+                              Creado hace {reporte.dias_creado || 0} días
+                            </Typography>
+                          </Box>
+
+                          {reporte.tecnico_asignado && (
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                              <Typography variant="body2">
+                                <strong>Técnico asignado:</strong> {reporte.tecnico_asignado}
+                              </Typography>
+                            </Alert>
+                          )}
+
+                          <Divider sx={{ my: 2 }} />
+
+                          <Box display="flex" gap={1}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<CommentIcon />}
+                              onClick={() => abrirModalComentario(reporte)}
+                            >
+                              Agregar Comentario
+                            </Button>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            ) : (
+              <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
+                <ReporteIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  No has creado reportes aún
+                </Typography>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                  Crea tu primer reporte para reportar problemas en tu comunidad
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={() => setTabValue(0)}
+                >
+                  Crear Mi Primer Reporte
+                </Button>
+              </Paper>
+            )}
           </Box>
+        )}
+
+        {/* TAB 2: Mi Actividad */}
+        {tabValue === 2 && (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Mi Actividad y Estadísticas
+            </Typography>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Resumen de Participación
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes creados"
+                        secondary={estadisticas.total_creados || 0}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes resueltos"
+                        secondary={estadisticas.resueltos || 0}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes en progreso"
+                        secondary={estadisticas.en_progreso || 0}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Tiempo promedio de resolución"
+                        secondary={estadisticas.promedio_dias_resolucion ? 
+                          `${parseFloat(estadisticas.promedio_dias_resolucion).toFixed(1)} días` : 
+                          'No disponible'
+                        }
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Estado Actual
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <InfoIcon color="info" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Reportes nuevos"
+                        secondary={`${estadisticas.nuevos || 0} esperando revisión`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CheckIcon color="success" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Reportes aprobados"
+                        secondary={`${estadisticas.aprobados || 0} listos para asignación`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <WarningIcon color="warning" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="En proceso de solución"
+                        secondary={`${estadisticas.en_progreso || 0} siendo atendidos`}
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+      </Box>
+
+      {/* Modal Agregar Comentario */}
+      <Dialog open={openComentario} onClose={cerrarModales} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Agregar Comentario
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            <strong>Reporte:</strong> {selectedReporte?.titulo}
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="Tu comentario"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+            placeholder="Agrega información adicional, cambios en el problema, o cualquier comentario relevante..."
+            sx={{ mt: 2 }}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenNuevoReporte(false)}>
+          <Button onClick={cerrarModales}>
             Cancelar
           </Button>
-          <Button 
-            variant="contained" 
-            onClick={handleNuevoReporteSubmit}
-            startIcon={<SendIcon />}
-            disabled={!nuevoReporte.titulo || !nuevoReporte.descripcion || !nuevoReporte.tipo}
+          <Button
+            onClick={handleAgregarComentario}
+            variant="contained"
+            disabled={!comentario.trim() || comentario.length < 5 || loading}
           >
-            Crear Reporte
+            {loading ? <CircularProgress size={20} /> : 'Agregar Comentario'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog para editar perfil */}
-      <Dialog open={openPerfil} onClose={() => setOpenPerfil(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>✏️ Editar Mi Perfil</DialogTitle>
-        <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2} mt={1}>
-            <TextField
-              fullWidth
-              label="Nombre Completo"
-              variant="outlined"
-              defaultValue={user?.nombre}
-            />
-            
-            <TextField
-              fullWidth
-              label="Correo Electrónico"
-              variant="outlined"
-              defaultValue={user?.correo}
-              disabled
-            />
-            
-            <TextField
-              fullWidth
-              label="Teléfono"
-              variant="outlined"
-              placeholder="7712-3456"
-            />
-            
-            <TextField
-              fullWidth
-              label="Dirección Completa"
-              variant="outlined"
-              placeholder="5ta Calle 8-20, Zona 1"
-            />
-            
-            <Alert severity="info">
-              <strong>Nota:</strong> Los cambios en tu perfil serán revisados por el líder COCODE de tu zona.
-            </Alert>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenPerfil(false)}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={() => setOpenPerfil(false)}>
-            Guardar Cambios
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Snackbar para notificaciones */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={cerrarSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={cerrarSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Footer Info */}
+      <Box mt={4} p={2} bgcolor="info.50" borderRadius={1} border="1px solid" borderColor="info.200">
+        <Typography variant="body2" color="textSecondary" textAlign="center">
+          <strong>Permisos de Ciudadano:</strong> Crear reportes con ubicación GPS | 
+          Hacer seguimiento a tus solicitudes | Agregar comentarios a tus reportes | Ver progreso en tiempo real |
+          <strong> NO puedes:</strong> Ver reportes de otros ciudadanos | Cambiar estados | Gestionar usuarios | Acceder a configuraciones administrativas
+        </Typography>
+      </Box>
     </Box>
   );
 };
