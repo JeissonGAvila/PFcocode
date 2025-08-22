@@ -1,17 +1,20 @@
-// backend/controllers/tecnico/reportesController.js
+// backend/controllers/tecnico/reportesController.js - CORREGIDO
 const pool = require('../../models/db');
 
 // Obtener reportes asignados al técnico (SOLO de su departamento)
 const getMisReportes = async (req, res) => {
   try {
-    // El técnico debe estar autenticado, su ID viene del middleware de auth
-    const tecnicoId = req.user?.id || req.params.tecnicoId; // Ajustar según tu sistema de auth
+    // CORREGIDO: Usar req.user del JWT (viene del middleware)
+    const tecnicoId = req.user.id;
+    const tecnicoDepartamento = req.user.departamento;
+    
+    console.log(`[TÉCNICO] ID: ${tecnicoId}, Departamento: ${tecnicoDepartamento}`);
     
     if (!tecnicoId) {
       return res.status(401).json({ error: 'Técnico no autenticado' });
     }
 
-    // Verificar que es técnico y obtener su departamento
+    // Verificar que es técnico activo
     const tecnicoQuery = `
       SELECT id, nombre, apellido, departamento, correo
       FROM administradores 
@@ -103,7 +106,7 @@ const getMisReportes = async (req, res) => {
 const cambiarEstadoReporte = async (req, res) => {
   const { id } = req.params;
   const { nuevo_estado, comentario } = req.body;
-  const tecnicoId = req.user?.id || req.body.tecnico_id;
+  const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
   try {
     // Verificar que el reporte está asignado a este técnico
@@ -213,7 +216,7 @@ const cambiarEstadoReporte = async (req, res) => {
 const agregarSeguimiento = async (req, res) => {
   const { id } = req.params;
   const { comentario, tiempo_invertido_horas, accion_tomada } = req.body;
-  const tecnicoId = req.user?.id || req.body.tecnico_id;
+  const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
   try {
     // Verificar que el reporte está asignado a este técnico
@@ -264,17 +267,20 @@ const agregarSeguimiento = async (req, res) => {
 // Obtener historial de seguimiento de un reporte
 const getHistorialReporte = async (req, res) => {
   const { id } = req.params;
-  const tecnicoId = req.user?.id || req.params.tecnicoId;
+  const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
   try {
-    // Verificar acceso al reporte
+    // Verificar acceso al reporte (debe estar asignado al técnico o ser de su departamento)
     const verificarQuery = `
       SELECT 1 FROM reportes r
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
       JOIN administradores a ON r.id_administrador_asignado = a.id
-      WHERE r.id = $1 AND (r.id_administrador_asignado = $2 OR a.departamento = (
-        SELECT departamento FROM administradores WHERE id = $2
-      ))
+      WHERE r.id = $1 AND (
+        r.id_administrador_asignado = $2 OR 
+        tp.departamento_responsable = (
+          SELECT departamento FROM administradores WHERE id = $2
+        )
+      )
     `;
     
     const acceso = await pool.query(verificarQuery, [id, tecnicoId]);
@@ -322,7 +328,7 @@ const getHistorialReporte = async (req, res) => {
 
 // Obtener estadísticas del técnico
 const getEstadisticasTecnico = async (req, res) => {
-  const tecnicoId = req.user?.id || req.params.tecnicoId;
+  const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
   try {
     const statsQuery = `

@@ -1,4 +1,4 @@
-// backend/index.js - Con Panel Técnico agregado
+// backend/index.js - ACTUALIZADO manteniendo estructura original
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -102,6 +102,15 @@ try {
   console.log('❌ Error en zonas:', error.message);
 }
 
+// Estados de reporte (ruta común)
+try {
+  const estadosReporteRoutes = require('./routes/estadosReporteRoutes');
+  app.use('/api/estados-reporte', estadosReporteRoutes);
+  console.log('✅ Estados Reporte routes cargadas');
+} catch (error) {
+  console.log('❌ Error en estados reporte:', error.message);
+}
+
 // ===================================
 // 🆕 PANELES ESPECÍFICOS POR USUARIO
 // ===================================
@@ -115,22 +124,14 @@ try {
   console.log('❌ Error en líder reportes:', error.message);
 }
 
-// 11. NUEVO: PANEL TÉCNICO
+// 11. PANEL TÉCNICO - CORREGIDO CON AUTENTICACIÓN
 try {
   const tecnicoReportesRoutes = require('./routes/tecnico/reportesRoutes');
   app.use('/api/tecnico/reportes', tecnicoReportesRoutes);
-  console.log('✅ Técnico Reportes routes cargadas - PANEL TÉCNICO ACTIVO');
+  console.log('✅ Técnico Reportes routes cargadas - PANEL TÉCNICO CON AUTENTICACIÓN');
 } catch (error) {
   console.log('❌ Error en técnico reportes:', error.message);
-}
-
-// Estados de reporte (ruta común)
-try {
-  const estadosReporteRoutes = require('./routes/estadosReporteRoutes');
-  app.use('/api/estados-reporte', estadosReporteRoutes);
-  console.log('✅ Estados Reporte routes cargadas');
-} catch (error) {
-  console.log('❌ Error en estados reporte:', error.message);
+  console.log('❌ Stack trace completo:', error.stack);
 }
 
 // Manejo de errores
@@ -160,6 +161,6 @@ app.listen(PORT, () => {
   console.log('   - /api/zonas/*');
   console.log('   - /api/estados-reporte/*');
   console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
-  console.log('   🆕 - /api/tecnico/reportes/* ← NUEVO PANEL TÉCNICO');
+  console.log('   🔧 - /api/tecnico/reportes/* ← PANEL TÉCNICO CORREGIDO');
   console.log('✅ SERVIDOR FUNCIONANDO');
 });
