@@ -1,15 +1,17 @@
-// backend/controllers/auth/authController.js
+// backend/controllers/auth/authController.js - CORREGIDO
 const pool = require('../../models/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-// Clave secreta para JWT (después la movemos a .env)
-const JWT_SECRET = 'tu_clave_secreta_muy_segura_2025';
+// Clave secreta para JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_2025';
 
 const login = async (req, res) => {
   const { correo, contrasena } = req.body;
 
   try {
+    console.log(`🔐 Intento de login: ${correo}`);
+    
     // Validar datos de entrada
     if (!correo || !contrasena) {
       return res.status(400).json({ 
@@ -23,6 +25,7 @@ const login = async (req, res) => {
     let permisos = {};
 
     // PASO 1: Buscar en tabla ADMINISTRADORES
+    console.log('🔍 Buscando en tabla administradores...');
     const adminQuery = `
       SELECT id, nombre, apellido, correo, contrasena, tipo_usuario, departamento, puede_asignar, rol
       FROM administradores 
@@ -31,6 +34,7 @@ const login = async (req, res) => {
     const adminResult = await pool.query(adminQuery, [correo]);
 
     if (adminResult.rows.length > 0) {
+      console.log('✅ Usuario encontrado en tabla administradores');
       usuario = adminResult.rows[0];
       
       if (usuario.tipo_usuario === 'administrador') {
@@ -56,9 +60,10 @@ const login = async (req, res) => {
 
     // PASO 2: Si no es admin/técnico, buscar en tabla USUARIOS (Líderes COCODE)
     if (!usuario) {
+      console.log('🔍 Buscando en tabla usuarios (líderes)...');
       const liderQuery = `
         SELECT u.id, u.nombre, u.apellido, u.correo, u.contrasena, u.tipo_lider, 
-               u.id_cocode_principal, u.id_subcocode, u.cargo,
+               u.id_cocode_principal, u.id_subcocode,
                z.id as id_zona, z.nombre as nombre_zona
         FROM usuarios u
         LEFT JOIN cocode c ON u.id_cocode_principal = c.id
@@ -68,6 +73,7 @@ const login = async (req, res) => {
       const liderResult = await pool.query(liderQuery, [correo]);
 
       if (liderResult.rows.length > 0) {
+        console.log('✅ Usuario encontrado en tabla usuarios (líder)');
         usuario = liderResult.rows[0];
         tipoUsuario = 'liderCocode';
         panel = '/lider';
@@ -84,17 +90,19 @@ const login = async (req, res) => {
 
     // PASO 3: Si no es líder, buscar en tabla CIUDADANOS_COLABORADORES
     if (!usuario) {
+      console.log('🔍 Buscando en tabla ciudadanos_colaboradores...');
       const ciudadanoQuery = `
         SELECT c.id, c.nombre, c.apellido, c.correo, c.contrasena, c.dpi,
-               c.id_zona, c.id_subcocode_cercano, c.direccion_completa,
+               c.id_zona, c.id_subcocode_area, c.direccion,
                z.nombre as nombre_zona
         FROM ciudadanos_colaboradores c
         LEFT JOIN zonas z ON c.id_zona = z.id
-        WHERE c.correo = $1 AND c.estado = TRUE
+        WHERE c.correo = $1 AND c.estado = TRUE AND c.activo = TRUE
       `;
       const ciudadanoResult = await pool.query(ciudadanoQuery, [correo]);
 
       if (ciudadanoResult.rows.length > 0) {
+        console.log('✅ Usuario encontrado en tabla ciudadanos_colaboradores');
         usuario = ciudadanoResult.rows[0];
         tipoUsuario = 'ciudadano';
         panel = '/ciudadano';
@@ -103,25 +111,34 @@ const login = async (req, res) => {
           verSusReportes: true,
           comentarReportes: true,
           actualizarPerfil: true,
-          id_ciudadano: usuario.id
+          id_ciudadano: usuario.id,
+          id_zona: usuario.id_zona
         };
       }
     }
 
     // Si no encontró el usuario en ninguna tabla
     if (!usuario) {
+      console.log('❌ Usuario no encontrado en ninguna tabla');
       return res.status(401).json({ 
-        error: 'Usuario no encontrado' 
+        error: 'Usuario no encontrado. Verifica tu correo electrónico.' 
       });
     }
 
-    // Verificar contraseña
+    console.log(`🔍 Usuario encontrado: ${usuario.nombre} ${usuario.apellido} (${tipoUsuario})`);
+    console.log(`🔐 Verificando contraseña hasheada...`);
+
+    // Verificar contraseña hasheada
     const contrasenaValida = await bcrypt.compare(contrasena, usuario.contrasena);
+    
     if (!contrasenaValida) {
+      console.log('❌ Contraseña incorrecta');
       return res.status(401).json({ 
-        error: 'Contraseña incorrecta' 
+        error: 'Contraseña incorrecta.' 
       });
     }
+
+    console.log('✅ Contraseña válida, generando token...');
 
     // Crear payload del JWT
     const payload = {
@@ -139,13 +156,29 @@ const login = async (req, res) => {
     // Generar token JWT
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
 
-    // Actualizar último acceso (solo para administradores)
-    if (tipoUsuario === 'administrador' || tipoUsuario === 'tecnico') {
-      await pool.query(
-        'UPDATE administradores SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
-        [usuario.id]
-      );
+    // Actualizar último acceso
+    try {
+      if (tipoUsuario === 'administrador' || tipoUsuario === 'tecnico') {
+        await pool.query(
+          'UPDATE administradores SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
+          [usuario.id]
+        );
+      } else if (tipoUsuario === 'liderCocode') {
+        await pool.query(
+          'UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
+          [usuario.id]
+        );
+      } else if (tipoUsuario === 'ciudadano') {
+        await pool.query(
+          'UPDATE ciudadanos_colaboradores SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
+          [usuario.id]
+        );
+      }
+    } catch (updateError) {
+      console.warn('⚠️ Error al actualizar último acceso:', updateError);
     }
+
+    console.log(`✅ Login exitoso para ${usuario.nombre} - Redirigiendo a ${panel}`);
 
     // Respuesta exitosa
     res.json({
@@ -165,17 +198,14 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en login:', error);
+    console.error('💥 Error en login:', error);
     res.status(500).json({ 
-      error: 'Error interno del servidor' 
+      error: 'Error interno del servidor: ' + error.message
     });
   }
 };
 
 const logout = async (req, res) => {
-  // En un sistema JWT, el logout se maneja principalmente en el frontend
-  // eliminando el token. Aquí podemos registrar la acción si es necesario.
-  
   try {
     res.json({
       success: true,
@@ -191,7 +221,7 @@ const logout = async (req, res) => {
 
 const verificarToken = async (req, res) => {
   try {
-    // El middleware ya verificó el token, solo devolvemos la info del usuario
+    // El middleware ya verificó el token
     res.json({
       success: true,
       usuario: req.user
