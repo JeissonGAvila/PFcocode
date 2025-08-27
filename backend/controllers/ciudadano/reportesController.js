@@ -51,9 +51,9 @@ const crearReporte = async (req, res) => {
       }
     }
 
-    // Verificar que el ciudadano existe y está activo
+    // Verificar que el ciudadano existe y está activo - CONSULTA CORREGIDA
     const ciudadanoQuery = `
-      SELECT id, nombre, apellido, id_zona, id_subcocode_cercano, correo, telefono
+      SELECT id, nombre, apellido, id_zona, correo, telefono
       FROM ciudadanos_colaboradores 
       WHERE id = $1 AND estado = TRUE
     `;
@@ -359,18 +359,17 @@ const getTiposProblema = async (req, res) => {
   }
 };
 
-// Obtener datos para selects del formulario
+// Obtener datos para selects del formulario - CONSULTA CORREGIDA
 const getDatosFormulario = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
 
-    // Obtener información del ciudadano
+    // Obtener información del ciudadano - COLUMNAS CORREGIDAS
     const ciudadanoQuery = `
-      SELECT c.nombre, c.apellido, c.direccion_completa, 
-             z.nombre as zona, sc.nombre as subcocode
+      SELECT c.nombre, c.apellido, c.direccion, 
+             z.nombre as zona
       FROM ciudadanos_colaboradores c
       LEFT JOIN zonas z ON c.id_zona = z.id
-      LEFT JOIN subcocode sc ON c.id_subcocode_cercano = sc.id
       WHERE c.id = $1 AND c.estado = TRUE
     `;
     

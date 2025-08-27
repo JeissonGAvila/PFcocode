@@ -1,4 +1,4 @@
-// frontend/src/vistas/liderCocode/Dashboard.jsx - ACTUALIZADO CON BACKEND REAL
+// frontend/src/vistas/liderCocode/Dashboard.jsx - COMPLETO CON BOTONES DE APROBACIÓN
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -25,7 +25,11 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  CircularProgress
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -46,16 +50,15 @@ import {
   Campaign as CampaignIcon,
   Event as EventIcon,
   Refresh as RefreshIcon,
-  NotificationsActive as NotificationIcon
+  NotificationsActive as NotificationIcon,
+  CheckCircle,
+  Cancel
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
 
-// 🆕 IMPORTAR EL NUEVO COMPONENTE
+// Importar el componente de reportes pendientes
 import ReportesPendientesAprobacion from '../../components/lider/ReportesPendientesAprobacion.jsx';
-
-// 🆕 IMPORTAR SERVICIO REAL
-import { liderReportesService } from '../../services/lider/reportesService.js';
 
 const DashboardLider = () => {
   const { user } = useAuth();
@@ -65,7 +68,26 @@ const DashboardLider = () => {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   
-  // 🆕 ESTADOS REALES CON BACKEND
+  // Estados para botones de aprobación
+  const [modalAprobar, setModalAprobar] = useState(false);
+  const [modalRechazar, setModalRechazar] = useState(false);
+  const [reporteSeleccionado, setReporteSeleccionado] = useState(null);
+  const [comentarioLider, setComentarioLider] = useState('');
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  
+  const motivosRechazo = [
+    'Reporte duplicado',
+    'Información insuficiente', 
+    'No es competencia municipal',
+    'Problema ya resuelto',
+    'Ubicación incorrecta',
+    'Falta documentación',
+    'No es prioridad comunitaria',
+    'Otro motivo'
+  ];
+  
+  // Estados reales con backend
   const [statsComunitarias, setStatsComunitarias] = useState({
     ciudadanosZona: 0,
     ciudadanosVerificados: 0,
@@ -78,7 +100,7 @@ const DashboardLider = () => {
     proximaReunion: '2025-01-15'
   });
 
-  // 🆕 REPORTES REALES DE LA ZONA
+  // Reportes reales de la zona
   const [reportesZona, setReportesZona] = useState([]);
   const [reportesPendientes, setReportesPendientes] = useState([]);
 
@@ -116,7 +138,7 @@ const DashboardLider = () => {
     }
   ]);
 
-  // 🆕 CARGAR DATOS REALES AL MONTAR
+  // Cargar datos al montar
   useEffect(() => {
     cargarDatosIniciales();
   }, []);
@@ -127,7 +149,6 @@ const DashboardLider = () => {
       await Promise.all([
         cargarReportesPendientes(),
         cargarReportesZona(),
-        // cargarEstadisticas() // Implementar después
       ]);
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -137,17 +158,26 @@ const DashboardLider = () => {
     }
   };
 
-  // 🆕 CARGAR REPORTES PENDIENTES DE APROBACIÓN
+  // Cargar reportes pendientes de aprobación
   const cargarReportesPendientes = async () => {
     try {
-      const response = await liderReportesService.getPendientesAprobacion();
-      if (response.success) {
-        setReportesPendientes(response.reportes || []);
-        
-        // Actualizar estadísticas
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:3001/api/lider/reportes/pendientes', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setReportesPendientes(data.reportes || []);
         setStatsComunitarias(prev => ({
           ...prev,
-          reportesPendientesAprobacion: response.reportes?.length || 0
+          reportesPendientesAprobacion: data.reportes?.length || 0
         }));
       }
     } catch (error) {
@@ -155,15 +185,26 @@ const DashboardLider = () => {
     }
   };
 
-  // 🆕 CARGAR TODOS LOS REPORTES DE LA ZONA
+  // Cargar todos los reportes de la zona
   const cargarReportesZona = async () => {
     try {
-      const response = await liderReportesService.getReportesZona({ limit: 10 });
-      if (response.success) {
-        setReportesZona(response.reportes || []);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:3001/api/lider/reportes/zona?limit=10', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setReportesZona(data.reportes || []);
         
         // Calcular estadísticas
-        const reportes = response.reportes || [];
+        const reportes = data.reportes || [];
         const activos = reportes.filter(r => 
           ['Nuevo', 'Aprobado por Líder', 'Asignado', 'En Proceso'].includes(r.estado_actual)
         ).length;
@@ -183,7 +224,136 @@ const DashboardLider = () => {
     }
   };
 
-  // 🆕 REFRESCAR DATOS
+  // Funciones para aprobar/rechazar
+  const handleAprobarReporteDirecto = (reporte) => {
+    setReporteSeleccionado(reporte);
+    setComentarioLider('');
+    setModalAprobar(true);
+  };
+
+  const handleRechazarReporteDirecto = (reporte) => {
+    setReporteSeleccionado(reporte);
+    setMotivoRechazo('');
+    setComentarioLider('');
+    setModalRechazar(true);
+  };
+
+  const ejecutarAprobacion = async () => {
+    try {
+      setProcesando(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No hay token de autenticación');
+      }
+
+      const response = await fetch(`http://localhost:3001/api/lider/reportes/${reporteSeleccionado.id}/aprobar`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          comentario_lider: comentarioLider
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al aprobar reporte');
+      }
+
+      if (data.success) {
+        setMensaje(`Reporte ${data.reporte.numero_reporte} aprobado exitosamente`);
+        
+        // Actualizar el estado del reporte en la lista local
+        setReportesZona(prev => 
+          prev.map(r => 
+            r.id === reporteSeleccionado.id 
+              ? { ...r, estado_actual: 'Aprobado por Líder' }
+              : r
+          )
+        );
+        
+        setModalAprobar(false);
+        setReporteSeleccionado(null);
+        setComentarioLider('');
+        
+        // Recargar datos
+        setTimeout(() => cargarDatosIniciales(), 1000);
+      }
+    } catch (error) {
+      console.error('Error al aprobar:', error);
+      setError(error.message || 'Error al aprobar el reporte');
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  const ejecutarRechazo = async () => {
+    try {
+      if (!motivoRechazo.trim()) {
+        setError('Debes seleccionar un motivo de rechazo');
+        return;
+      }
+
+      setProcesando(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No hay token de autenticación');
+      }
+
+      const response = await fetch(`http://localhost:3001/api/lider/reportes/${reporteSeleccionado.id}/rechazar`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          motivo_rechazo: motivoRechazo,
+          comentario_lider: comentarioLider
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al rechazar reporte');
+      }
+
+      if (data.success) {
+        setMensaje(`Reporte ${data.reporte.numero_reporte} rechazado: ${data.motivo}`);
+        
+        // Actualizar el estado del reporte en la lista local
+        setReportesZona(prev => 
+          prev.map(r => 
+            r.id === reporteSeleccionado.id 
+              ? { ...r, estado_actual: 'Rechazado por Líder' }
+              : r
+          )
+        );
+        
+        setModalRechazar(false);
+        setReporteSeleccionado(null);
+        setMotivoRechazo('');
+        setComentarioLider('');
+        
+        // Recargar datos
+        setTimeout(() => cargarDatosIniciales(), 1000);
+      }
+    } catch (error) {
+      console.error('Error al rechazar:', error);
+      setError(error.message || 'Error al rechazar el reporte');
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  // Refrescar datos
   const handleRefrescar = async () => {
     await cargarDatosIniciales();
     setMensaje('Datos actualizados correctamente');
@@ -216,15 +386,13 @@ const DashboardLider = () => {
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
     
-    // Recargar datos cuando cambie de tab
     if (newValue === 0) {
       cargarReportesZona();
-    } else if (newValue === 3) { // Tab de reportes pendientes
+    } else if (newValue === 3) {
       cargarReportesPendientes();
     }
   };
 
-  // Función para manejar validación (mantener mock por ahora)
   const handleValidarReporte = (reporteId) => {
     setReportesZona(prev => 
       prev.map(reporte => 
@@ -272,12 +440,10 @@ const DashboardLider = () => {
         </Box>
         
         <Box display="flex" alignItems="center" gap={2}>
-          {/* 🆕 NOTIFICACIONES CON BADGE REAL */}
           <Badge badgeContent={reportesPendientes.length} color="warning">
             <NotificationIcon />
           </Badge>
           
-          {/* 🆕 BOTÓN REFRESCAR */}
           <Button
             variant="outlined"
             color="inherit"
@@ -294,7 +460,7 @@ const DashboardLider = () => {
 
       {/* Contenido Principal */}
       <Box p={3}>
-        {/* 🆕 MENSAJES DE ESTADO */}
+        {/* Mensajes de estado */}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
             {error}
@@ -309,14 +475,14 @@ const DashboardLider = () => {
 
         {/* Alerta de Responsabilidad Comunitaria */}
         <Alert severity="success" sx={{ mb: 3 }}>
-          <strong>👥 Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
+          <strong>Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
           Coordinas con técnicos y validas reportes comunitarios.
           {reportesPendientes.length > 0 && (
-            <strong> ⚠️ Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
+            <strong> Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
           )}
         </Alert>
 
-        {/* 🆕 ESTADÍSTICAS REALES */}
+        {/* Estadísticas reales */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
             <Card elevation={3}>
@@ -375,17 +541,17 @@ const DashboardLider = () => {
           </Grid>
         </Grid>
 
-        {/* 🆕 TABS ACTUALIZADOS */}
+        {/* Tabs actualizados */}
         <Paper sx={{ mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="📋 Reportes de mi Zona" />
-            <Tab label="👥 Ciudadanos" />
-            <Tab label="🤝 Coordinación" />
-            <Tab label={`⚠️ Pendientes Aprobación (${reportesPendientes.length})`} />
+            <Tab label="Reportes de mi Zona" />
+            <Tab label="Ciudadanos" />
+            <Tab label="Coordinación" />
+            <Tab label={`Pendientes Aprobación (${reportesPendientes.length})`} />
           </Tabs>
         </Paper>
 
-        {/* Tab 0 - Reportes de la Zona (CON DATOS REALES) */}
+        {/* Tab 0 - Reportes de la Zona con datos reales */}
         {tabValue === 0 && (
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
@@ -431,7 +597,7 @@ const DashboardLider = () => {
                               {reporte.descripcion}
                             </Typography>
                             <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <HomeIcon fontSize="small" /> {reporte.direccion_completa}
+                              <HomeIcon fontSize="small" /> {reporte.direccion}
                             </Typography>
                             <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                               <PhoneIcon fontSize="small" /> {reporte.ciudadano_nombre} {reporte.ciudadano_apellido} - {reporte.ciudadano_telefono}
@@ -458,6 +624,8 @@ const DashboardLider = () => {
                         </Box>
 
                         <Divider sx={{ mb: 2 }} />
+                        
+                        {/* BOTONES CON FUNCIONALIDAD DE APROBACIÓN */}
                         <Box display="flex" gap={1} flexWrap="wrap">
                           <Button
                             size="small"
@@ -474,6 +642,33 @@ const DashboardLider = () => {
                           >
                             Contactar Ciudadano
                           </Button>
+
+                          {/* BOTONES PARA APROBAR/RECHAZAR - SOLO SI ESTÁ EN ESTADO "Nuevo" */}
+                          {reporte.estado_actual === 'Nuevo' && (
+                            <>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="success"
+                                startIcon={<CheckCircle />}
+                                onClick={() => handleAprobarReporteDirecto(reporte)}
+                                disabled={procesando}
+                              >
+                                Aprobar
+                              </Button>
+                              
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                startIcon={<Cancel />}
+                                onClick={() => handleRechazarReporteDirecto(reporte)}
+                                disabled={procesando}
+                              >
+                                Rechazar
+                              </Button>
+                            </>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
@@ -482,11 +677,11 @@ const DashboardLider = () => {
               </Paper>
             </Grid>
 
-            {/* Panel lateral con información comunitaria REAL */}
+            {/* Panel lateral con información comunitaria real */}
             <Grid item xs={12} lg={4}>
               <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  📊 Resumen Comunitario
+                  Resumen Comunitario
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
@@ -529,7 +724,7 @@ const DashboardLider = () => {
 
               <Paper elevation={3} sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  🚀 Acciones Rápidas
+                  Acciones Rápidas
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
@@ -573,7 +768,7 @@ const DashboardLider = () => {
           </Grid>
         )}
 
-        {/* Tab 1 - Gestión de Ciudadanos (MANTENER COMO ESTABA) */}
+        {/* Tab 1 - Gestión de Ciudadanos (mantener como estaba) */}
         {tabValue === 1 && (
           <Paper elevation={3} sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -646,13 +841,13 @@ const DashboardLider = () => {
           </Paper>
         )}
 
-        {/* Tab 2 - Coordinación (MANTENER COMO ESTABA) */}
+        {/* Tab 2 - Coordinación (mantener como estaba) */}
         {tabValue === 2 && (
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  🤝 Coordinación con Técnicos
+                  Coordinación con Técnicos
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
@@ -693,7 +888,7 @@ const DashboardLider = () => {
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  📅 Actividades Comunitarias
+                  Actividades Comunitarias
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
@@ -733,7 +928,7 @@ const DashboardLider = () => {
           </Grid>
         )}
 
-        {/* 🆕 Tab 3 - REPORTES PENDIENTES DE APROBACIÓN */}
+        {/* Tab 3 - Reportes pendientes de aprobación */}
         {tabValue === 3 && (
           <ReportesPendientesAprobacion />
         )}
@@ -741,7 +936,7 @@ const DashboardLider = () => {
         {/* Footer Info */}
         <Box mt={4} p={2} bgcolor="success.50" borderRadius={1} border="1px solid" borderColor="success.200">
           <Typography variant="body2" color="textSecondary" textAlign="center">
-            👥 <strong>Permisos de Líder COCODE:</strong> Gestionar ciudadanos de {user?.zona || 'tu zona'} | 
+            <strong>Permisos de Líder COCODE:</strong> Gestionar ciudadanos de {user?.zona || 'tu zona'} | 
             Ver y validar reportes comunitarios | Crear reportes en nombre de ciudadanos | 
             Coordinar con técnicos | Organizar actividades comunitarias |
             <strong> NO puedes:</strong> Ver reportes de otras zonas | Asignar técnicos | Cambiar configuraciones del sistema
@@ -749,9 +944,127 @@ const DashboardLider = () => {
         </Box>
       </Box>
 
-      {/* Dialog para nuevo reporte comunitario (MANTENER COMO ESTABA) */}
+      {/* MODALES PARA APROBAR/RECHAZAR */}
+      
+      {/* Modal Aprobar */}
+      <Dialog open={modalAprobar} onClose={() => setModalAprobar(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Aprobar Reporte
+        </DialogTitle>
+        <DialogContent>
+          {reporteSeleccionado && (
+            <Box sx={{ pt: 1 }}>
+              <Typography variant="body1" gutterBottom>
+                <strong>Reporte:</strong> {reporteSeleccionado.titulo}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                #{reporteSeleccionado.numero_reporte}
+              </Typography>
+              
+              <TextField
+                fullWidth
+                label="Comentario del Líder (opcional)"
+                multiline
+                rows={3}
+                value={comentarioLider}
+                onChange={(e) => setComentarioLider(e.target.value)}
+                placeholder="Agregar comentarios sobre la aprobación..."
+                sx={{ mt: 2 }}
+              />
+              
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Al aprobar, el reporte será enviado al administrador para asignación a técnico.
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setModalAprobar(false)}
+            disabled={procesando}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success"
+            onClick={ejecutarAprobacion}
+            disabled={procesando}
+            startIcon={procesando ? <CircularProgress size={16} /> : <CheckCircle />}
+          >
+            {procesando ? 'Aprobando...' : 'Aprobar Reporte'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal Rechazar */}
+      <Dialog open={modalRechazar} onClose={() => setModalRechazar(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Rechazar Reporte
+        </DialogTitle>
+        <DialogContent>
+          {reporteSeleccionado && (
+            <Box sx={{ pt: 1 }}>
+              <Typography variant="body1" gutterBottom>
+                <strong>Reporte:</strong> {reporteSeleccionado.titulo}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                #{reporteSeleccionado.numero_reporte}
+              </Typography>
+              
+              <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
+                <InputLabel>Motivo de Rechazo *</InputLabel>
+                <Select
+                  value={motivoRechazo}
+                  onChange={(e) => setMotivoRechazo(e.target.value)}
+                  label="Motivo de Rechazo *"
+                >
+                  {motivosRechazo.map((motivo) => (
+                    <MenuItem key={motivo} value={motivo}>
+                      {motivo}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <TextField
+                fullWidth
+                label="Comentario adicional (opcional)"
+                multiline
+                rows={3}
+                value={comentarioLider}
+                onChange={(e) => setComentarioLider(e.target.value)}
+                placeholder="Explicar el motivo del rechazo..."
+              />
+              
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Al rechazar, el ciudadano será notificado del motivo.
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setModalRechazar(false)}
+            disabled={procesando}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            variant="contained" 
+            color="error"
+            onClick={ejecutarRechazo}
+            disabled={procesando || !motivoRechazo}
+            startIcon={procesando ? <CircularProgress size={16} /> : <Cancel />}
+          >
+            {procesando ? 'Rechazando...' : 'Rechazar Reporte'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para nuevo reporte comunitario */}
       <Dialog open={openNuevoReporte} onClose={() => setOpenNuevoReporte(false)} maxWidth="md" fullWidth>
-        <DialogTitle>📝 Crear Reporte Comunitario</DialogTitle>
+        <DialogTitle>Crear Reporte Comunitario</DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} mt={1}>
             <TextField

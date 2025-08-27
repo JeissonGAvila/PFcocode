@@ -13,7 +13,7 @@ const getReportesPendientesAprobacion = async (req, res) => {
         r.numero_reporte,
         r.titulo,
         r.descripcion,
-        cc.direccion_completa,  -- CORREGIDO: cc.direccion_completa en lugar de r.direccion_completa
+        cc.direccion,  -- CORREGIDO: cc.direccion en lugar de cc.direccion_completa
         r.prioridad,
         r.fecha_reporte,
         
@@ -130,7 +130,7 @@ const aprobarReporte = async (req, res) => {
     // Crear registro de seguimiento
     const seguimientoQuery = `
       INSERT INTO seguimiento_reportes (
-        id_reporte, id_administrador, tipo_usuario_seguimiento,
+        id_reporte, id_lider, tipo_usuario_seguimiento,
         estado_anterior, estado_nuevo, tipo_seguimiento,
         comentario, accion_tomada, usuario_ingreso
       ) VALUES ($1, $2, $3, 
@@ -211,7 +211,7 @@ const rechazarReporte = async (req, res) => {
     
     const estadoRechazadoId = estadoResult.rows[0].id;
 
-    // Actualizar el reporte - NOTA: motivo_rechazo puede no existir en la tabla
+    // Actualizar el reporte
     const updateQuery = `
       UPDATE reportes 
       SET 
@@ -233,7 +233,7 @@ const rechazarReporte = async (req, res) => {
     // Crear registro de seguimiento con el motivo en el comentario
     const seguimientoQuery = `
       INSERT INTO seguimiento_reportes (
-        id_reporte, id_administrador, tipo_usuario_seguimiento,
+        id_reporte, id_lider, tipo_usuario_seguimiento,
         estado_anterior, estado_nuevo, tipo_seguimiento,
         comentario, accion_tomada, usuario_ingreso
       ) VALUES ($1, $2, $3, 
@@ -291,7 +291,7 @@ const getReportesZona = async (req, res) => {
         r.numero_reporte,
         r.titulo,
         r.descripcion,
-        cc.direccion_completa,  -- CORREGIDO: cc.direccion_completa
+        cc.direccion,  -- CORREGIDO: cc.direccion
         r.prioridad,
         r.fecha_reporte,
         
@@ -441,7 +441,7 @@ const validarResolucion = async (req, res) => {
 
     const seguimientoQuery = `
       INSERT INTO seguimiento_reportes (
-        id_reporte, id_administrador, tipo_usuario_seguimiento,
+        id_reporte, id_lider, tipo_usuario_seguimiento,
         estado_anterior, estado_nuevo, tipo_seguimiento,
         comentario, accion_tomada, usuario_ingreso
       ) VALUES ($1, $2, $3, 
