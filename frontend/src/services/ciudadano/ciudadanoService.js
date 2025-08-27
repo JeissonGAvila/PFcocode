@@ -1,14 +1,46 @@
-// frontend/src/services/ciudadano/ciudadanoService.js
+// frontend/src/services/ciudadano/ciudadanoService.js - FINAL COMPLETO
 import { apiService } from '../api.js';
 
 const ciudadanoService = {
-  // Crear nuevo reporte con geolocalización
+  // Crear nuevo reporte SIN fotos (método original)
   crearReporte: async (reporteData) => {
     try {
       const response = await apiService.post('/api/ciudadano/reportes', reporteData);
       return response;
     } catch (error) {
       throw new Error(error.message || 'Error al crear reporte');
+    }
+  },
+
+  // NUEVO: Crear reporte CON fotos usando FormData
+  crearReporteConFotos: async (formData) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No hay token de autenticación');
+      }
+      
+      const response = await fetch('http://localhost:3001/api/ciudadano/reportes/con-fotos', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+          // NO incluir Content-Type para FormData - el navegador lo establece automáticamente
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: Error al crear reporte`);
+      }
+
+      const result = await response.json();
+      return result;
+      
+    } catch (error) {
+      console.error('Error en crearReporteConFotos:', error);
+      throw new Error(error.message || 'Error al crear reporte con fotos');
     }
   },
 
@@ -84,7 +116,7 @@ export const geoUtils = {
 
       const options = {
         enableHighAccuracy: true,
-        timeout: 10000, // 10 segundos
+        timeout: 15000, // 15 segundos
         maximumAge: 300000 // 5 minutos de cache
       };
 
@@ -109,13 +141,13 @@ export const geoUtils = {
           let mensaje = 'Error al obtener ubicación GPS';
           switch (error.code) {
             case error.PERMISSION_DENIED:
-              mensaje = 'Permiso de ubicación denegado por el usuario';
+              mensaje = 'Permiso de ubicación denegado por el usuario. Ve a configuración del navegador para habilitarlo.';
               break;
             case error.POSITION_UNAVAILABLE:
-              mensaje = 'Información de ubicación no disponible';
+              mensaje = 'Información de ubicación no disponible. Intenta desde un lugar con mejor señal GPS.';
               break;
             case error.TIMEOUT:
-              mensaje = 'Tiempo de espera agotado para obtener ubicación';
+              mensaje = 'Tiempo de espera agotado para obtener ubicación. Verifica tu conexión y señal GPS.';
               break;
           }
           reject(new Error(mensaje));
@@ -140,7 +172,7 @@ export const geoUtils = {
   coordenadasADireccion: async (lat, lng) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es&zoom=18`
       );
       
       if (!response.ok) {
@@ -150,12 +182,37 @@ export const geoUtils = {
       const data = await response.json();
       
       if (data && data.display_name) {
+        // Extraer partes relevantes de la dirección para Guatemala
+        const address = data.address || {};
+        const partesDireccion = [];
+        
+        // Agregar elementos en orden de relevancia
+        if (address.house_number && address.road) {
+          partesDireccion.push(`${address.road} ${address.house_number}`);
+        } else if (address.road) {
+          partesDireccion.push(address.road);
+        }
+        
+        if (address.neighbourhood || address.suburb) {
+          partesDireccion.push(address.neighbourhood || address.suburb);
+        }
+        
+        if (address.city || address.town || address.village) {
+          partesDireccion.push(address.city || address.town || address.village);
+        }
+        
+        if (address.state) {
+          partesDireccion.push(address.state);
+        }
+
         return {
           direccion_completa: data.display_name,
-          ciudad: data.address?.city || data.address?.town || data.address?.village || '',
-          departamento: data.address?.state || '',
-          pais: data.address?.country || '',
-          codigo_postal: data.address?.postcode || ''
+          direccion_resumida: partesDireccion.join(', ') || data.display_name,
+          ciudad: address.city || address.town || address.village || '',
+          departamento: address.state || '',
+          pais: address.country || 'Guatemala',
+          codigo_postal: address.postcode || '',
+          barrio: address.neighbourhood || address.suburb || ''
         };
       } else {
         throw new Error('No se pudo obtener la dirección');
@@ -164,9 +221,11 @@ export const geoUtils = {
       console.warn('Error en geocodificación inversa:', error);
       return {
         direccion_completa: `Coordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        direccion_resumida: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
         ciudad: '',
         departamento: '',
-        pais: 'Guatemala'
+        pais: 'Guatemala',
+        barrio: ''
       };
     }
   },
@@ -190,6 +249,30 @@ export const geoUtils = {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
     return R * c; // Distancia en metros
+  },
+
+  // Obtener ubicación aproximada por IP (fallback)
+  obtenerUbicacionPorIP: async () => {
+    try {
+      const response = await fetch('http://ip-api.com/json/?fields=status,country,countryCode,region,regionName,city,lat,lon,timezone');
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        return {
+          lat: data.lat,
+          lng: data.lon,
+          ciudad: data.city,
+          region: data.regionName,
+          pais: data.country,
+          metodo: 'ip',
+          precision: 50000 // Precisión muy baja para IP
+        };
+      } else {
+        throw new Error('No se pudo obtener ubicación por IP');
+      }
+    } catch (error) {
+      throw new Error('Error al obtener ubicación por IP: ' + error.message);
+    }
   }
 };
 

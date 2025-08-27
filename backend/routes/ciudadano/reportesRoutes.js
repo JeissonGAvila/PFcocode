@@ -1,8 +1,10 @@
-// backend/routes/ciudadano/reportesRoutes.js
+// backend/routes/ciudadano/reportesRoutes.js - COMPLETO CON SUBIDA DE FOTOS
 const express = require('express');
 const router = express.Router();
+const { upload, handleMulterError } = require('../../middleware/multerConfig');
 const {
   crearReporte,
+  crearReporteConFotos,
   getMisReportes,
   agregarComentario,
   getTiposProblema,
@@ -30,10 +32,16 @@ router.get('/tipos-problema', getTiposProblema);
 // GET /api/ciudadano/reportes - Obtener MIS reportes (solo los míos)
 router.get('/', getMisReportes);
 
-// POST /api/ciudadano/reportes - Crear nuevo reporte con geolocalización
+// POST /api/ciudadano/reportes - Crear nuevo reporte SIN fotos (método original)
 router.post('/', crearReporte);
+
+// POST /api/ciudadano/reportes/con-fotos - Crear nuevo reporte CON fotos (método nuevo)
+router.post('/con-fotos', upload.array('fotos', 3), handleMulterError, crearReporteConFotos);
 
 // POST /api/ciudadano/reportes/:id/comentario - Agregar comentario a MI reporte
 router.post('/:id/comentario', agregarComentario);
+
+// Ruta para servir archivos estáticos (fotos subidas)
+router.use('/uploads', express.static('uploads'));
 
 module.exports = router;

@@ -1,4 +1,4 @@
-// backend/controllers/ciudadano/reportesController.js - COMPLETO Y CORREGIDO
+// backend/controllers/ciudadano/reportesController.js - COMPLETO CON SUBIDA DE FOTOS
 const pool = require('../../models/db');
 
 // Validar coordenadas de Guatemala
@@ -12,7 +12,7 @@ const validarCoordenadasGuatemala = (lat, lng) => {
   return latValida && lngValida;
 };
 
-// Crear nuevo reporte con geolocalización
+// Crear nuevo reporte SIN fotos (método original)
 const crearReporte = async (req, res) => {
   try {
     const ciudadanoId = req.user.id; // Del JWT
@@ -51,7 +51,7 @@ const crearReporte = async (req, res) => {
       }
     }
 
-    // Verificar que el ciudadano existe y está activo - CONSULTA CORREGIDA
+    // Verificar que el ciudadano existe y está activo
     const ciudadanoQuery = `
       SELECT id, nombre, apellido, id_zona, correo, telefono
       FROM ciudadanos_colaboradores 
@@ -79,7 +79,7 @@ const crearReporte = async (req, res) => {
       return res.status(400).json({ error: 'Tipo de problema no válido' });
     }
 
-    // Generar número de reporte único con timestamp para evitar conflictos
+    // Generar número de reporte único
     const timestamp = Date.now();
     const numeroReporte = `RPT-${timestamp.toString().slice(-6)}`;
 
@@ -101,7 +101,7 @@ const crearReporte = async (req, res) => {
     const metodoFinal = metodo_ubicacion || 'manual';
     const precisionFinal = precision_metros || null;
 
-    // Insertar el reporte con geolocalización
+    // Insertar el reporte
     const insertQuery = `
       INSERT INTO reportes (
         numero_reporte, titulo, descripcion, direccion,
@@ -124,7 +124,7 @@ const crearReporte = async (req, res) => {
       `ciudadano_${ciudadanoId}`
     ]);
 
-    // Registrar en seguimiento (opcional - solo si la tabla lo soporta)
+    // Registrar en seguimiento
     try {
       const seguimientoQuery = `
         INSERT INTO seguimiento_reportes (
@@ -140,7 +140,6 @@ const crearReporte = async (req, res) => {
       ]);
     } catch (seguimientoError) {
       console.warn('No se pudo registrar seguimiento:', seguimientoError.message);
-      // Continúa sin error - el seguimiento es opcional
     }
 
     res.status(201).json({
@@ -166,6 +165,209 @@ const crearReporte = async (req, res) => {
     console.error('Error al crear reporte:', error);
     res.status(500).json({
       error: 'Error al crear el reporte'
+    });
+  }
+};
+
+// NUEVO: Crear reporte CON fotos
+const crearReporteConFotos = async (req, res) => {
+  try {
+    const ciudadanoId = req.user.id;
+    const {
+      titulo,
+      descripcion,
+      direccion,
+      id_tipo_problema,
+      prioridad = 'Media',
+      ubicacion_lat,
+      ubicacion_lng,
+      metodo_ubicacion = 'manual',
+      precision_metros
+    } = req.body;
+
+    // Validaciones básicas
+    if (!titulo || !descripcion || !direccion || !id_tipo_problema) {
+      return res.status(400).json({
+        error: 'Título, descripción, dirección y tipo de problema son requeridos'
+      });
+    }
+
+    if (direccion.length < 10) {
+      return res.status(400).json({
+        error: 'La dirección debe ser más específica (mínimo 10 caracteres)'
+      });
+    }
+
+    // Validar coordenadas si se proporcionan
+    if (ubicacion_lat && ubicacion_lng) {
+      if (!validarCoordenadasGuatemala(ubicacion_lat, ubicacion_lng)) {
+        return res.status(400).json({
+          error: 'Las coordenadas están fuera del territorio de Guatemala'
+        });
+      }
+    }
+
+    // Iniciar transacción para asegurar consistencia
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Verificar ciudadano
+      const ciudadanoResult = await client.query(
+        `SELECT id, nombre, apellido, id_zona, correo, telefono 
+         FROM ciudadanos_colaboradores 
+         WHERE id = $1 AND estado = TRUE`,
+        [ciudadanoId]
+      );
+
+      if (ciudadanoResult.rows.length === 0) {
+        throw new Error('Ciudadano no encontrado o inactivo');
+      }
+
+      const ciudadano = ciudadanoResult.rows[0];
+
+      // Verificar tipo de problema
+      const tipoResult = await client.query(
+        `SELECT id, nombre, departamento_responsable 
+         FROM tipos_problema 
+         WHERE id = $1 AND estado = TRUE`,
+        [id_tipo_problema]
+      );
+
+      if (tipoResult.rows.length === 0) {
+        throw new Error('Tipo de problema no válido');
+      }
+
+      // Generar número de reporte
+      const timestamp = Date.now();
+      const numeroReporte = `RPT-${timestamp.toString().slice(-6)}`;
+
+      // Obtener estado "Nuevo"
+      const estadoResult = await client.query(
+        `SELECT id FROM estados_reporte WHERE nombre = 'Nuevo' AND estado = TRUE`
+      );
+      
+      if (estadoResult.rows.length === 0) {
+        throw new Error('Estado "Nuevo" no configurado');
+      }
+
+      // Insertar reporte
+      const insertQuery = `
+        INSERT INTO reportes (
+          numero_reporte, titulo, descripcion, direccion,
+          id_tipo_problema, prioridad, id_estado,
+          id_ciudadano_colaborador, tipo_usuario_creador,
+          id_zona, latitud, longitud, metodo_ubicacion, precision_metros,
+          fecha_reporte, usuario_ingreso
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, 'ciudadano',
+          $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, $14
+        ) RETURNING *
+      `;
+
+      const reporteResult = await client.query(insertQuery, [
+        numeroReporte, titulo, descripcion, direccion,
+        id_tipo_problema, prioridad, estadoResult.rows[0].id,
+        ciudadanoId, ciudadano.id_zona,
+        ubicacion_lat || null, ubicacion_lng || null,
+        metodo_ubicacion || 'manual', precision_metros || null,
+        `ciudadano_${ciudadanoId}`
+      ]);
+
+      const nuevoReporte = reporteResult.rows[0];
+
+      // Guardar archivos si existen
+      const archivosGuardados = [];
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          const archivoQuery = `
+            INSERT INTO archivos_reporte (
+              id_reporte, nombre_archivo, url_archivo, tipo_archivo,
+              tamano_kb, es_evidencia_inicial, subido_por_tipo, subido_por_id,
+              fecha_subida, usuario_ingreso, estado
+            ) VALUES ($1, $2, $3, $4, $5, true, 'ciudadano', $6, CURRENT_TIMESTAMP, $7, true)
+            RETURNING *
+          `;
+
+          const archivoResult = await client.query(archivoQuery, [
+            nuevoReporte.id,
+            file.filename,
+            `/uploads/reportes/${file.filename}`,
+            file.mimetype,
+            Math.round(file.size / 1024),
+            ciudadanoId,
+            `ciudadano_${ciudadanoId}`
+          ]);
+
+          archivosGuardados.push(archivoResult.rows[0]);
+        }
+      }
+
+      // Registrar en seguimiento
+      try {
+        const comentarioSeguimiento = req.files && req.files.length > 0 
+          ? `Reporte creado por ciudadano con ${req.files.length} foto(s). Ubicación: ${ubicacion_lat && ubicacion_lng ? 'GPS' : 'Dirección'}: ${direccion}`
+          : `Reporte creado por ciudadano. Ubicación: ${ubicacion_lat && ubicacion_lng ? 'GPS' : 'Dirección'}: ${direccion}`;
+
+        await client.query(
+          `INSERT INTO seguimiento_reportes (
+            id_reporte, tipo_usuario_seguimiento, comentario, tipo_seguimiento, usuario_ingreso
+           ) VALUES ($1, 'ciudadano', $2, 'creacion', $3)`,
+          [nuevoReporte.id, comentarioSeguimiento, `ciudadano_${ciudadanoId}`]
+        );
+      } catch (seguimientoError) {
+        console.warn('No se pudo registrar seguimiento:', seguimientoError.message);
+      }
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        message: 'Reporte creado exitosamente con evidencia fotográfica',
+        reporte: {
+          ...nuevoReporte,
+          ciudadano_info: {
+            nombre: `${ciudadano.nombre} ${ciudadano.apellido}`,
+            correo: ciudadano.correo,
+            telefono: ciudadano.telefono
+          }
+        },
+        numero_reporte: numeroReporte,
+        archivos: archivosGuardados,
+        ubicacion: {
+          tiene_coordenadas: !!(ubicacion_lat && ubicacion_lng),
+          metodo: metodo_ubicacion || 'manual',
+          precision_metros: precision_metros
+        },
+        fotos_subidas: req.files ? req.files.length : 0
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Error al crear reporte con fotos:', error);
+    
+    // Si hay archivos subidos pero falló la transacción, limpiar archivos
+    if (req.files && req.files.length > 0) {
+      const fs = require('fs');
+      req.files.forEach(file => {
+        try {
+          fs.unlinkSync(file.path);
+        } catch (unlinkError) {
+          console.error('Error eliminando archivo:', unlinkError);
+        }
+      });
+    }
+
+    res.status(500).json({
+      error: 'Error al crear el reporte con fotos',
+      message: error.message
     });
   }
 };
@@ -218,7 +420,9 @@ const getMisReportes = async (req, res) => {
           WHEN 'Resuelto' THEN 100
           WHEN 'Cerrado' THEN 100
           ELSE 5
-        END as progreso_porcentaje
+        END as progreso_porcentaje,
+        -- Verificar si tiene fotos
+        (SELECT COUNT(*) > 0 FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.estado = TRUE) as tiene_fotos
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
@@ -317,7 +521,6 @@ const agregarComentario = async (req, res) => {
       });
     } catch (seguimientoError) {
       console.warn('Error al insertar seguimiento:', seguimientoError.message);
-      // Si falla el seguimiento, al menos confirmamos que el comentario se quiso agregar
       res.json({
         success: true,
         message: 'Comentario registrado (seguimiento limitado)',
@@ -359,12 +562,12 @@ const getTiposProblema = async (req, res) => {
   }
 };
 
-// Obtener datos para selects del formulario - CONSULTA CORREGIDA
+// Obtener datos para selects del formulario
 const getDatosFormulario = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
 
-    // Obtener información del ciudadano - COLUMNAS CORREGIDAS
+    // Obtener información del ciudadano
     const ciudadanoQuery = `
       SELECT c.nombre, c.apellido, c.direccion, 
              z.nombre as zona
@@ -405,6 +608,7 @@ const getDatosFormulario = async (req, res) => {
 
 module.exports = {
   crearReporte,
+  crearReporteConFotos, // NUEVO MÉTODO
   getMisReportes,
   agregarComentario,
   getTiposProblema,

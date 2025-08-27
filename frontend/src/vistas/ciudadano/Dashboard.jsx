@@ -1,4 +1,4 @@
-// frontend/src/vistas/ciudadano/Dashboard.jsx - COMPLETO CON GEOLOCALIZACIÓN
+// frontend/src/vistas/ciudadano/Dashboard.jsx - FINAL CON GRID V2 CORREGIDO
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -47,11 +47,14 @@ import {
   Edit as EditIcon,
   Check as CheckIcon,
   Warning as WarningIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  PhotoCamera as PhotoCameraIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
 import ciudadanoService, { geoUtils, estadosReporteCiudadano, prioridadesReporte } from '../../services/ciudadano/ciudadanoService.js';
+import MapaUbicacion from '../../components/ciudadano/MapaUbicacion.jsx';
+import SubidaFotos from '../../components/ciudadano/SubidaFotos.jsx';
 
 const DashboardCiudadano = () => {
   const { user, isAuthenticated, isCiudadano } = useAuth();
@@ -83,12 +86,15 @@ const DashboardCiudadano = () => {
     prioridad: 'Media'
   });
 
+  // Estados para fotos
+  const [fotosReporte, setFotosReporte] = useState([]);
+
   // Estados para geolocalización
   const [ubicacion, setUbicacion] = useState({
     lat: null,
     lng: null,
     direccion_aproximada: '',
-    metodo: 'manual',
+    metodo: 'gps',
     precision: null,
     obteniendo: false
   });
@@ -154,7 +160,6 @@ const DashboardCiudadano = () => {
       
       const ubicacionGPS = await geoUtils.obtenerUbicacionGPS();
       
-      // Intentar obtener dirección aproximada
       try {
         const direccionData = await geoUtils.coordenadasADireccion(ubicacionGPS.lat, ubicacionGPS.lng);
         ubicacionGPS.direccion_aproximada = direccionData.direccion_completa;
@@ -184,7 +189,7 @@ const DashboardCiudadano = () => {
       lat: null,
       lng: null,
       direccion_aproximada: '',
-      metodo: 'manual',
+      metodo: 'gps',
       precision: null,
       obteniendo: false
     });
@@ -205,6 +210,7 @@ const DashboardCiudadano = () => {
       prioridad: 'Media'
     });
     limpiarUbicacion();
+    setFotosReporte([]);
     setOpenNuevoReporte(true);
   };
 
@@ -219,9 +225,21 @@ const DashboardCiudadano = () => {
     setOpenComentario(false);
     setSelectedReporte(null);
     setComentario('');
+    // Limpiar fotos y liberar memoria
+    fotosReporte.forEach(foto => {
+      if (foto.preview) {
+        URL.revokeObjectURL(foto.preview);
+      }
+    });
+    setFotosReporte([]);
   };
 
-  // Funciones de acción
+  // Función para manejar cambios en fotos
+  const handleFotosChange = (nuevasFotos) => {
+    setFotosReporte(nuevasFotos);
+  };
+
+  // FUNCIÓN CORREGIDA PARA MANEJAR FOTOS
   const handleCrearReporte = async () => {
     try {
       // Validaciones
@@ -237,24 +255,62 @@ const DashboardCiudadano = () => {
 
       setLoading(true);
 
-      const reporteData = {
-        ...formData,
-        ubicacion_lat: ubicacion.lat,
-        ubicacion_lng: ubicacion.lng,
-        metodo_ubicacion: ubicacion.metodo,
-        precision_metros: ubicacion.precision
-      };
+      // Decidir qué método usar según si hay fotos
+      if (fotosReporte.length > 0) {
+        // CON FOTOS: usar FormData y endpoint especial
+        const reporteData = new FormData();
+        reporteData.append('titulo', formData.titulo);
+        reporteData.append('descripcion', formData.descripcion);
+        reporteData.append('direccion', formData.direccion);
+        reporteData.append('id_tipo_problema', formData.id_tipo_problema);
+        reporteData.append('prioridad', formData.prioridad);
+        
+        if (ubicacion.lat && ubicacion.lng) {
+          reporteData.append('ubicacion_lat', ubicacion.lat);
+          reporteData.append('ubicacion_lng', ubicacion.lng);
+          reporteData.append('metodo_ubicacion', ubicacion.metodo);
+          reporteData.append('precision_metros', ubicacion.precision);
+        }
 
-      const response = await ciudadanoService.crearReporte(reporteData);
-      
-      if (response.success) {
-        mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente`, 'success');
-        cerrarModales();
-        cargarDatos();
+        // Agregar fotos con el nombre correcto que espera multer
+        fotosReporte.forEach((foto) => {
+          reporteData.append('fotos', foto.file);
+        });
+
+        const response = await ciudadanoService.crearReporteConFotos(reporteData);
+        
+        if (response.success) {
+          mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente con ${fotosReporte.length} foto(s)`, 'success');
+          cerrarModales();
+          cargarDatos();
+        }
+
+      } else {
+        // SIN FOTOS: usar JSON normal
+        const reporteData = {
+          titulo: formData.titulo,
+          descripcion: formData.descripcion,
+          direccion: formData.direccion,
+          id_tipo_problema: formData.id_tipo_problema,
+          prioridad: formData.prioridad,
+          ubicacion_lat: ubicacion.lat,
+          ubicacion_lng: ubicacion.lng,
+          metodo_ubicacion: ubicacion.metodo,
+          precision_metros: ubicacion.precision
+        };
+
+        const response = await ciudadanoService.crearReporte(reporteData);
+        
+        if (response.success) {
+          mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente`, 'success');
+          cerrarModales();
+          cargarDatos();
+        }
       }
 
     } catch (error) {
-      mostrarSnackbar(error.message, 'error');
+      console.error('Error creando reporte:', error);
+      mostrarSnackbar('Error: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -362,7 +418,7 @@ const DashboardCiudadano = () => {
       <Box p={3}>
         {/* Bienvenida personalizada */}
         <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>¡Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes con ubicación GPS, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
+          <strong>Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes con ubicación GPS/mapa, subir fotos del problema, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
         </Alert>
 
         {error && (
@@ -406,11 +462,11 @@ const DashboardCiudadano = () => {
           </Tabs>
         </Paper>
 
-        {/* TAB 0: Crear Reporte */}
+        {/* TAB 0: Crear Reporte - GRID V2 CORREGIDO */}
         {tabValue === 0 && (
           <Box>
             <Grid container spacing={3}>
-              <Grid item xs={12} lg={8}>
+              <Grid xs={12} lg={8}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Crear Nuevo Reporte
@@ -420,7 +476,7 @@ const DashboardCiudadano = () => {
                   </Typography>
 
                   <Grid container spacing={2}>
-                    <Grid item xs={12}>
+                    <Grid xs={12}>
                       <TextField
                         fullWidth
                         label="Título del Problema *"
@@ -432,7 +488,7 @@ const DashboardCiudadano = () => {
                       />
                     </Grid>
 
-                    <Grid item xs={12} sm={6}>
+                    <Grid xs={12} sm={6}>
                       <FormControl fullWidth required>
                         <InputLabel>Tipo de Problema</InputLabel>
                         <Select
@@ -450,7 +506,7 @@ const DashboardCiudadano = () => {
                       </FormControl>
                     </Grid>
 
-                    <Grid item xs={12} sm={6}>
+                    <Grid xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Prioridad</InputLabel>
                         <Select
@@ -468,7 +524,7 @@ const DashboardCiudadano = () => {
                       </FormControl>
                     </Grid>
 
-                    <Grid item xs={12}>
+                    <Grid xs={12}>
                       <TextField
                         fullWidth
                         multiline
@@ -482,42 +538,68 @@ const DashboardCiudadano = () => {
                       />
                     </Grid>
 
-                    {/* SECCIÓN DE UBICACIÓN CON GPS */}
-                    <Grid item xs={12}>
+                    {/* SECCIÓN DE UBICACIÓN CON GPS Y MAPA INTEGRADO */}
+                    <Grid xs={12}>
                       <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
                         Ubicación del Problema
                       </Typography>
                       <Divider sx={{ mb: 2 }} />
-                    </Grid>
-
-                    <Grid item xs={12}>
-                      <Box display="flex" gap={2} mb={2}>
-                        <Button
-                          variant="outlined"
-                          startIcon={ubicacion.obteniendo ? <CircularProgress size={16} /> : <GPSIcon />}
-                          onClick={obtenerUbicacionGPS}
-                          disabled={ubicacion.obteniendo || !geoUtils.soportaGeolocalizacion()}
-                          color={ubicacion.lat ? 'success' : 'primary'}
+                      
+                      {/* Tabs para alternar entre métodos */}
+                      <Box sx={{ mb: 2 }}>
+                        <Tabs 
+                          value={ubicacion.metodo === 'gps' ? 0 : ubicacion.metodo === 'mapa' ? 1 : 2} 
+                          onChange={(e, newValue) => {
+                            const metodos = ['gps', 'mapa', 'manual'];
+                            setUbicacion(prev => ({ ...prev, metodo: metodos[newValue] }));
+                          }}
+                          variant="scrollable"
+                          scrollButtons="auto"
                         >
-                          {ubicacion.obteniendo ? 'Obteniendo...' : 
-                           ubicacion.lat ? 'GPS Obtenido' : 'Usar mi ubicación GPS'}
-                        </Button>
-                        
-                        {ubicacion.lat && (
-                          <Button
-                            variant="outlined"
-                            color="warning"
-                            onClick={limpiarUbicacion}
-                          >
-                            Limpiar GPS
-                          </Button>
-                        )}
+                          <Tab 
+                            label="GPS Automático" 
+                            icon={<GPSIcon />} 
+                            iconPosition="start"
+                          />
+                          <Tab 
+                            label="Seleccionar en Mapa" 
+                            icon={<MapIcon />} 
+                            iconPosition="start"
+                          />
+                          <Tab 
+                            label="Solo Dirección" 
+                            icon={<LocationIcon />} 
+                            iconPosition="start"
+                          />
+                        </Tabs>
                       </Box>
 
-                      {ubicacion.lat && (
+                      {/* Mostrar GPS/Mapa según el método seleccionado */}
+                      {(ubicacion.metodo === 'gps' || ubicacion.metodo === 'mapa') && (
+                        <Box sx={{ mb: 3 }}>
+                          <MapaUbicacion
+                            ubicacion={ubicacion}
+                            onUbicacionChange={(nuevaUbicacion) => {
+                              setUbicacion(prev => ({
+                                ...prev,
+                                ...nuevaUbicacion,
+                                obteniendo: false
+                              }));
+                            }}
+                            onUbicacionGPS={obtenerUbicacionGPS}
+                            loading={ubicacion.obteniendo}
+                            height={400}
+                            allowManualSelection={ubicacion.metodo === 'mapa'}
+                          />
+                        </Box>
+                      )}
+
+                      {/* Información de ubicación obtenida */}
+                      {ubicacion.lat && ubicacion.lng && (
                         <Alert severity="success" sx={{ mb: 2 }}>
                           <Typography variant="body2">
-                            <strong>Ubicación GPS:</strong> {ubicacion.lat.toFixed(6)}, {ubicacion.lng.toFixed(6)}
+                            <strong>Ubicación {ubicacion.metodo === 'gps' ? 'GPS' : 'seleccionada'}:</strong> 
+                            {ubicacion.lat.toFixed(6)}, {ubicacion.lng.toFixed(6)}
                             {ubicacion.precision && ` (Precisión: ${Math.round(ubicacion.precision)}m)`}
                           </Typography>
                           {ubicacion.direccion_aproximada && (
@@ -528,6 +610,7 @@ const DashboardCiudadano = () => {
                         </Alert>
                       )}
 
+                      {/* Campo de dirección (siempre visible) */}
                       <TextField
                         fullWidth
                         label="Dirección Exacta *"
@@ -536,27 +619,44 @@ const DashboardCiudadano = () => {
                         onChange={handleInputChange}
                         placeholder="Ej: 3a Calle 4-15, Zona 1, Colonia Centro"
                         required
-                        helperText="Proporciona la dirección más específica posible para que el técnico pueda ubicar el problema"
+                        helperText="Proporciona la dirección más específica posible. La ubicación GPS/mapa es complementaria."
+                        sx={{ mb: 2 }}
                       />
                     </Grid>
 
-                    <Grid item xs={12}>
+                    {/* SECCIÓN DE SUBIDA DE FOTOS */}
+                    <Grid xs={12}>
+                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+                        Evidencia Fotográfica
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      
+                      <SubidaFotos
+                        fotos={fotosReporte}
+                        onFotosChange={handleFotosChange}
+                        maxFotos={3}
+                        disabled={loading}
+                      />
+                    </Grid>
+
+                    <Grid xs={12}>
                       <Button
                         fullWidth
                         variant="contained"
                         size="large"
                         onClick={handleCrearReporte}
                         disabled={loading || !formData.titulo || !formData.descripcion || !formData.direccion || !formData.id_tipo_problema}
-                        sx={{ mt: 2 }}
+                        sx={{ mt: 3 }}
+                        startIcon={loading ? <CircularProgress size={20} /> : <AddIcon />}
                       >
-                        {loading ? <CircularProgress size={24} /> : 'Crear Reporte'}
+                        {loading ? 'Creando Reporte...' : `Crear Reporte${fotosReporte.length > 0 ? ` con ${fotosReporte.length} foto(s)` : ''}`}
                       </Button>
                     </Grid>
                   </Grid>
                 </Paper>
               </Grid>
 
-              <Grid item xs={12} lg={4}>
+              <Grid xs={12} lg={4}>
                 <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Consejos Importantes
@@ -564,11 +664,20 @@ const DashboardCiudadano = () => {
                   <List dense>
                     <ListItem>
                       <ListItemIcon>
-                        <GPSIcon color="primary" />
+                        <PhotoCameraIcon color="primary" />
                       </ListItemIcon>
                       <ListItemText
-                        primary="Usa GPS para mayor precisión"
-                        secondary="La ubicación GPS ayuda al técnico a encontrar el problema más rápido"
+                        primary="Subir fotos del problema"
+                        secondary="Las imágenes optimizadas ayudan al técnico a entender mejor el problema"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <MapIcon color="primary" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Usa GPS o Mapa para precisión"
+                        secondary="La ubicación visual ayuda al técnico a encontrar el problema más rápido"
                       />
                     </ListItem>
                     <ListItem>
@@ -597,7 +706,7 @@ const DashboardCiudadano = () => {
                     Estadísticas Personales
                   </Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid xs={6}>
                       <Card>
                         <CardContent sx={{ textAlign: 'center', py: 1 }}>
                           <Typography variant="h6" color="primary">
@@ -609,7 +718,7 @@ const DashboardCiudadano = () => {
                         </CardContent>
                       </Card>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid xs={6}>
                       <Card>
                         <CardContent sx={{ textAlign: 'center', py: 1 }}>
                           <Typography variant="h6" color="success.main">
@@ -622,13 +731,27 @@ const DashboardCiudadano = () => {
                       </Card>
                     </Grid>
                   </Grid>
+
+                  {/* Información sobre fotos */}
+                  {fotosReporte.length > 0 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Fotos listas:</strong> {fotosReporte.length}/3
+                      </Typography>
+                      <Typography variant="caption">
+                        Total optimizado: {fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) > 1024 
+                          ? `${(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024 / 1024).toFixed(1)} MB`
+                          : `${Math.round(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024)} KB`}
+                      </Typography>
+                    </Alert>
+                  )}
                 </Paper>
               </Grid>
             </Grid>
           </Box>
         )}
 
-        {/* TAB 1: Mis Reportes */}
+        {/* TAB 1: Mis Reportes - GRID V2 CORREGIDO */}
         {tabValue === 1 && (
           <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
@@ -650,7 +773,7 @@ const DashboardCiudadano = () => {
                 {misReportes.map((reporte) => {
                   const estadoInfo = getEstadoInfo(reporte.estado);
                   return (
-                    <Grid item xs={12} md={6} key={reporte.id}>
+                    <Grid xs={12} md={6} key={reporte.id}>
                       <Card elevation={3}>
                         <CardContent>
                           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
@@ -684,6 +807,11 @@ const DashboardCiudadano = () => {
                             {reporte.latitud && reporte.longitud && (
                               <Tooltip title={`GPS: ${reporte.latitud}, ${reporte.longitud}`}>
                                 <GPSIcon fontSize="small" sx={{ ml: 1, color: 'success.main' }} />
+                              </Tooltip>
+                            )}
+                            {reporte.tiene_fotos && (
+                              <Tooltip title="Incluye fotos">
+                                <PhotoCameraIcon fontSize="small" sx={{ ml: 1, color: 'info.main' }} />
                               </Tooltip>
                             )}
                           </Box>
@@ -776,7 +904,7 @@ const DashboardCiudadano = () => {
             </Typography>
             
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Resumen de Participación
@@ -813,7 +941,7 @@ const DashboardCiudadano = () => {
                 </Paper>
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: 3 }}>
                   <Typography variant="h6" gutterBottom>
                     Estado Actual
@@ -903,7 +1031,7 @@ const DashboardCiudadano = () => {
       {/* Footer Info */}
       <Box mt={4} p={2} bgcolor="info.50" borderRadius={1} border="1px solid" borderColor="info.200">
         <Typography variant="body2" color="textSecondary" textAlign="center">
-          <strong>Permisos de Ciudadano:</strong> Crear reportes con ubicación GPS | 
+          <strong>Permisos de Ciudadano:</strong> Crear reportes con ubicación GPS/mapa y fotos | 
           Hacer seguimiento a tus solicitudes | Agregar comentarios a tus reportes | Ver progreso en tiempo real |
           <strong> NO puedes:</strong> Ver reportes de otros ciudadanos | Cambiar estados | Gestionar usuarios | Acceder a configuraciones administrativas
         </Typography>
