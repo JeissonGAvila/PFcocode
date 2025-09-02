@@ -1,4 +1,4 @@
-// frontend/src/components/lider/ReportesPendientesAprobacion.jsx
+// frontend/src/components/lider/ReportesPendientesAprobacion.jsx - COMPLETO CORREGIDO
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -20,7 +20,9 @@ import {
   MenuItem,
   CircularProgress,
   Grid,
-  Paper
+  Paper,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   CheckCircle as AprobarIcon,
@@ -30,20 +32,27 @@ import {
   Phone as PhoneIcon,
   Assignment as ReporteIcon,
   Warning as WarningIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  PhotoCamera as CameraIcon,
+  MyLocation as LocationIcon
 } from '@mui/icons-material';
+
+// Importar componentes nuevos
+import GaleriaFotos from './GaleriaFotos';
+import MapaUbicacionLider from './MapaUbicacionLider';
 import { liderReportesService } from '../../services/lider/reportesService.js';
 
 const ReportesPendientesAprobacion = () => {
-  // Estados principales
   const [reportesPendientes, setReportesPendientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const [tabDetalles, setTabDetalles] = useState(0);
 
   // Estados para modales
   const [modalAprobar, setModalAprobar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
+  const [modalDetalles, setModalDetalles] = useState(false);
   const [reporteSeleccionado, setReporteSeleccionado] = useState(null);
   const [comentarioLider, setComentarioLider] = useState('');
   const [motivoRechazo, setMotivoRechazo] = useState('');
@@ -99,6 +108,12 @@ const ReportesPendientesAprobacion = () => {
     setModalRechazar(true);
   };
 
+  const handleAbrirModalDetalles = (reporte) => {
+    setReporteSeleccionado(reporte);
+    setTabDetalles(0);
+    setModalDetalles(true);
+  };
+
   const handleAprobarReporte = async () => {
     try {
       setProcesando(true);
@@ -118,6 +133,7 @@ const ReportesPendientesAprobacion = () => {
         );
         
         setModalAprobar(false);
+        setModalDetalles(false);
         setReporteSeleccionado(null);
         setComentarioLider('');
       }
@@ -154,6 +170,7 @@ const ReportesPendientesAprobacion = () => {
         );
         
         setModalRechazar(false);
+        setModalDetalles(false);
         setReporteSeleccionado(null);
         setMotivoRechazo('');
         setComentarioLider('');
@@ -223,6 +240,26 @@ const ReportesPendientesAprobacion = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
+            <Typography variant="h4" color="info.main">
+              {reportesPendientes.filter(r => r.tiene_fotos).length}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Con Fotos
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
+            <Typography variant="h4" color="success.main">
+              {reportesPendientes.filter(r => r.tiene_ubicacion_gps).length}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Con Ubicación
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="h4" color="error.main">
               {reportesPendientes.filter(r => r.prioridad === 'Alta').length}
             </Typography>
@@ -265,10 +302,38 @@ const ReportesPendientesAprobacion = () => {
                       {reporte.descripcion}
                     </Typography>
                     
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                        <HomeIcon fontSize="small" /> {reporte.direccion_completa}
-                      </Typography>
+                    {/* Información de ubicación y fotos */}
+                    <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <HomeIcon fontSize="small" color="action" />
+                        <Typography variant="body2" color="textSecondary">
+                          {reporte.direccion}
+                        </Typography>
+                      </Box>
+                      
+                      {reporte.tiene_ubicacion_gps && (
+                        <Chip 
+                          icon={<LocationIcon />}
+                          label="GPS"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                      )}
+                      
+                      {reporte.tiene_fotos && (
+                        <Chip 
+                          icon={<CameraIcon />}
+                          label={`${reporte.total_fotos} foto${reporte.total_fotos !== 1 ? 's' : ''}`}
+                          size="small"
+                          color="info"
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+
+                    {/* Información del ciudadano */}
+                    <Box sx={{ mt: 1 }}>
                       <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                         <PersonIcon fontSize="small" /> {reporte.ciudadano_nombre} {reporte.ciudadano_apellido}
                       </Typography>
@@ -292,30 +357,170 @@ const ReportesPendientesAprobacion = () => {
 
                 <Divider sx={{ mb: 2 }} />
                 
-                <Box display="flex" gap={1} justifyContent="flex-end">
+                <Box display="flex" gap={1} justifyContent="space-between" alignItems="center">
                   <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<AprobarIcon />}
-                    onClick={() => handleAbrirModalAprobar(reporte)}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleAbrirModalDetalles(reporte)}
                   >
-                    Aprobar
+                    Ver Detalles Completos
                   </Button>
                   
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<RechazarIcon />}
-                    onClick={() => handleAbrirModalRechazar(reporte)}
-                  >
-                    Rechazar
-                  </Button>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="small"
+                      startIcon={<AprobarIcon />}
+                      onClick={() => handleAbrirModalAprobar(reporte)}
+                    >
+                      Aprobar
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      startIcon={<RechazarIcon />}
+                      onClick={() => handleAbrirModalRechazar(reporte)}
+                    >
+                      Rechazar
+                    </Button>
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
           ))}
         </Box>
       )}
+
+      {/* Modal Detalles Completos */}
+      <Dialog open={modalDetalles} onClose={() => setModalDetalles(false)} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          Detalles del Reporte #{reporteSeleccionado?.numero_reporte}
+        </DialogTitle>
+        <DialogContent dividers>
+          {reporteSeleccionado && (
+            <Box>
+              <Paper sx={{ mb: 2 }}>
+                <Tabs value={tabDetalles} onChange={(e, newValue) => setTabDetalles(newValue)}>
+                  <Tab label="Información General" />
+                  <Tab label="Fotos" />
+                  <Tab label="Ubicación" />
+                </Tabs>
+              </Paper>
+
+              {tabDetalles === 0 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    {reporteSeleccionado.titulo}
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Descripción:</strong>
+                      </Typography>
+                      <Typography variant="body2" paragraph>
+                        {reporteSeleccionado.descripcion}
+                      </Typography>
+                      
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Dirección:</strong>
+                      </Typography>
+                      <Typography variant="body2" paragraph>
+                        {reporteSeleccionado.direccion}
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Información del Ciudadano:</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Nombre:</strong> {reporteSeleccionado.ciudadano_nombre} {reporteSeleccionado.ciudadano_apellido}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Teléfono:</strong> {reporteSeleccionado.ciudadano_telefono}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Correo:</strong> {reporteSeleccionado.ciudadano_correo}
+                      </Typography>
+                      
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="body1" gutterBottom>
+                          <strong>Información Técnica:</strong>
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Tipo:</strong> {reporteSeleccionado.tipo_problema}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Departamento:</strong> {reporteSeleccionado.departamento_responsable}
+                        </Typography>
+                        
+                        {/* ✅ CORREGIDO: Chip fuera de Typography */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Typography variant="body2" component="span">
+                            <strong>Prioridad:</strong>
+                          </Typography>
+                          <Chip 
+                            label={reporteSeleccionado.prioridad}
+                            color={getPrioridadColor(reporteSeleccionado.prioridad)}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {tabDetalles === 1 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Fotos del Reporte
+                  </Typography>
+                  <GaleriaFotos fotos={reporteSeleccionado.fotos} maxHeight={300} />
+                </Box>
+              )}
+
+              {tabDetalles === 2 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Ubicación del Reporte
+                  </Typography>
+                  <MapaUbicacionLider 
+                    latitud={reporteSeleccionado.latitud}
+                    longitud={reporteSeleccionado.longitud}
+                    metodo_ubicacion={reporteSeleccionado.metodo_ubicacion}
+                    precision_metros={reporteSeleccionado.precision_metros}
+                    height={400}
+                  />
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalDetalles(false)}>
+            Cerrar
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success"
+            onClick={() => handleAbrirModalAprobar(reporteSeleccionado)}
+          >
+            Aprobar Reporte
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="error"
+            onClick={() => handleAbrirModalRechazar(reporteSeleccionado)}
+          >
+            Rechazar Reporte
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Modal Aprobar Reporte */}
       <Dialog open={modalAprobar} onClose={() => setModalAprobar(false)} maxWidth="sm" fullWidth>

@@ -1,6 +1,7 @@
-// backend/index.js - ACTUALIZADO con panel ciudadano
+// backend/index.js - ACTUALIZADO CON SERVICIO DE ARCHIVOS ESTÁTICOS
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,15 @@ app.use(express.json());
 
 console.log('🔍 INICIANDO SERVIDOR...');
 
+// ===================================
+// SERVIR ARCHIVOS ESTÁTICOS (FOTOS)
+// ===================================
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+console.log('📁 Servidor de archivos estáticos configurado');
+console.log('📸 Ruta de uploads:', path.join(__dirname, 'uploads'));
+
 // Ruta de prueba básica
 app.get('/api/test', (req, res) => {
   res.json({ 
@@ -19,8 +29,36 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// RUTAS EXISTENTES
+// Ruta de prueba para verificar archivos
+app.get('/api/debug/files', (req, res) => {
+  const fs = require('fs');
+  const uploadsDir = path.join(__dirname, 'uploads/reportes');
+  
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      return res.json({
+        success: false,
+        error: 'Directorio no existe',
+        message: `El directorio ${uploadsDir} no existe`
+      });
+    }
 
+    const files = fs.readdirSync(uploadsDir);
+    res.json({
+      success: true,
+      message: `Archivos en uploads/reportes: ${files.length}`,
+      files: files.slice(0, 10) // Primeros 10 archivos
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      message: 'Error al leer directorio de uploads'
+    });
+  }
+});
+
+// RUTAS EXISTENTES
 // 1. Auth (existe)
 try {
   const authRoutes = require('./routes/auth/authRoutes');
@@ -173,5 +211,7 @@ app.listen(PORT, () => {
   console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
   console.log('   🔧 - /api/tecnico/reportes/* ← PANEL TÉCNICO CORREGIDO');
   console.log('   📍 - /api/ciudadano/reportes/* ← PANEL CIUDADANO CON GPS');
-  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS');
+  console.log('   📁 - /uploads/* ← SERVICIO DE ARCHIVOS ESTÁTICOS');
+  console.log('   🐛 - /api/debug/files ← DEBUG DE ARCHIVOS');
+  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS + ARCHIVOS');
 });

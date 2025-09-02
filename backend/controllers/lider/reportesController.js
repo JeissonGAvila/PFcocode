@@ -1,11 +1,11 @@
-// backend/controllers/lider/reportesController.js - CORREGIDO
+// backend/controllers/lider/reportesController.js - MEJORADO CON FOTOS Y UBICACIÓN
 const pool = require('../../models/db');
 
-// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona)
+// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona) - MEJORADO
 const getReportesPendientesAprobacion = async (req, res) => {
   try {
-    const liderId = req.user.id; // Del token JWT
-    const zonaId = req.user.permisos.id_zona; // Zona del líder
+    const liderId = req.user.id;
+    const zonaId = req.user.permisos.id_zona;
 
     const query = `
       SELECT 
@@ -13,9 +13,13 @@ const getReportesPendientesAprobacion = async (req, res) => {
         r.numero_reporte,
         r.titulo,
         r.descripcion,
-        cc.direccion,  -- CORREGIDO: cc.direccion en lugar de cc.direccion_completa
+        r.direccion,
         r.prioridad,
         r.fecha_reporte,
+        r.latitud,
+        r.longitud,
+        r.metodo_ubicacion,
+        r.precision_metros,
         
         -- Datos del ciudadano que creó el reporte
         cc.nombre as ciudadano_nombre,
@@ -33,7 +37,34 @@ const getReportesPendientesAprobacion = async (req, res) => {
         
         -- Zona
         z.nombre as zona_nombre,
-        z.numero_zona
+        z.numero_zona,
+        
+        -- Fotos del reporte (ARRAY de fotos)
+        (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ar.id,
+              'nombre_archivo', ar.nombre_archivo,
+              'url_archivo', ar.url_archivo,
+              'tipo_archivo', ar.tipo_archivo,
+              'tamano_kb', ar.tamano_kb,
+              'fecha_subida', ar.fecha_subida
+            )
+          )
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as fotos,
+        
+        -- Contador de fotos
+        (
+          SELECT COUNT(*) 
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as total_fotos
         
       FROM reportes r
       INNER JOIN ciudadanos_colaboradores cc ON r.id_ciudadano_colaborador = cc.id
@@ -45,15 +76,30 @@ const getReportesPendientesAprobacion = async (req, res) => {
         AND er.nombre = 'Nuevo'
         AND r.estado = TRUE
         
-      ORDER BY r.fecha_reporte DESC, r.prioridad DESC
+      ORDER BY 
+        CASE r.prioridad
+          WHEN 'Alta' THEN 1
+          WHEN 'Media' THEN 2
+          WHEN 'Baja' THEN 3
+          ELSE 4
+        END,
+        r.fecha_reporte DESC
     `;
 
     const result = await pool.query(query, [zonaId]);
 
+    // Procesar resultados para incluir información de ubicación
+    const reportesProcesados = result.rows.map(reporte => ({
+      ...reporte,
+      tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud),
+      tiene_fotos: (reporte.total_fotos || 0) > 0,
+      fotos: reporte.fotos || [] // Asegurar que fotos sea un array
+    }));
+
     res.json({
       success: true,
       message: `Reportes pendientes de aprobación en zona ${zonaId}`,
-      reportes: result.rows,
+      reportes: reportesProcesados,
       total: result.rows.length
     });
 
@@ -66,7 +112,150 @@ const getReportesPendientesAprobacion = async (req, res) => {
   }
 };
 
-// 2. APROBAR REPORTE (Cambiar de "Nuevo" a "Aprobado por Líder")
+// 2. VER REPORTES DE SU ZONA (todos los estados) - MEJORADO
+const getReportesZona = async (req, res) => {
+  try {
+    const liderId = req.user.id;
+    const zonaId = req.user.permisos.id_zona;
+    const { estado, page = 1, limit = 20 } = req.query;
+
+    let whereClause = 'WHERE r.id_zona = $1 AND r.estado = TRUE';
+    let params = [zonaId];
+
+    // Filtro opcional por estado
+    if (estado) {
+      whereClause += ' AND er.nombre = $2';
+      params.push(estado);
+    }
+
+    const offset = (page - 1) * limit;
+
+    const query = `
+      SELECT 
+        r.id,
+        r.numero_reporte,
+        r.titulo,
+        r.descripcion,
+        r.direccion,
+        r.prioridad,
+        r.fecha_reporte,
+        r.latitud,
+        r.longitud,
+        r.metodo_ubicacion,
+        r.precision_metros,
+        
+        -- Datos del ciudadano
+        cc.nombre as ciudadano_nombre,
+        cc.apellido as ciudadano_apellido, 
+        cc.telefono as ciudadano_telefono,
+        
+        -- Tipo de problema
+        tp.nombre as tipo_problema,
+        tp.departamento_responsable,
+        
+        -- Estado actual
+        er.nombre as estado_actual,
+        er.color as estado_color,
+        
+        -- Técnico asignado (si existe)
+        ta.nombre as tecnico_nombre,
+        ta.apellido as tecnico_apellido,
+        
+        -- Zona
+        z.nombre as zona_nombre,
+        
+        -- Fotos del reporte
+        (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ar.id,
+              'nombre_archivo', ar.nombre_archivo,
+              'url_archivo', ar.url_archivo,
+              'tipo_archivo', ar.tipo_archivo,
+              'tamano_kb', ar.tamano_kb,
+              'fecha_subida', ar.fecha_subida
+            )
+          )
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as fotos,
+        
+        -- Contador de fotos
+        (
+          SELECT COUNT(*) 
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as total_fotos
+        
+      FROM reportes r
+      INNER JOIN ciudadanos_colaboradores cc ON r.id_ciudadano_colaborador = cc.id
+      INNER JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
+      INNER JOIN estados_reporte er ON r.id_estado = er.id
+      INNER JOIN zonas z ON r.id_zona = z.id
+      LEFT JOIN administradores ta ON r.id_administrador_asignado = ta.id
+      
+      ${whereClause}
+      
+      ORDER BY 
+        CASE 
+          WHEN er.nombre = 'Nuevo' THEN 1
+          WHEN er.nombre = 'Aprobado por Líder' THEN 2
+          WHEN er.nombre = 'Asignado' THEN 3
+          WHEN er.nombre = 'En Proceso' THEN 4
+          WHEN er.nombre = 'Resuelto' THEN 5
+          ELSE 6
+        END,
+        r.fecha_reporte DESC
+        
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    params.push(limit, offset);
+    const result = await pool.query(query, params);
+
+    // Procesar resultados
+    const reportesProcesados = result.rows.map(reporte => ({
+      ...reporte,
+      tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud),
+      tiene_fotos: (reporte.total_fotos || 0) > 0,
+      fotos: reporte.fotos || []
+    }));
+
+    // Contar total de reportes
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM reportes r
+      INNER JOIN estados_reporte er ON r.id_estado = er.id
+      ${whereClause}
+    `;
+    
+    const countResult = await pool.query(countQuery, params.slice(0, -2));
+
+    res.json({
+      success: true,
+      reportes: reportesProcesados,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: parseInt(countResult.rows[0].total),
+        pages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener reportes de zona:', error);
+    res.status(500).json({ 
+      error: 'Error al obtener reportes de la zona',
+      details: error.message 
+    });
+  }
+};
+
+// 3. APROBAR REPORTE (Mantener igual)
 const aprobarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -163,7 +352,7 @@ const aprobarReporte = async (req, res) => {
   }
 };
 
-// 3. RECHAZAR REPORTE (Cambiar de "Nuevo" a "Rechazado por Líder")
+// 4. RECHAZAR REPORTE (Mantener igual)
 const rechazarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -267,111 +456,7 @@ const rechazarReporte = async (req, res) => {
   }
 };
 
-// 4. VER REPORTES DE SU ZONA (todos los estados)
-const getReportesZona = async (req, res) => {
-  try {
-    const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
-    const { estado, page = 1, limit = 20 } = req.query;
-
-    let whereClause = 'WHERE r.id_zona = $1 AND r.estado = TRUE';
-    let params = [zonaId];
-
-    // Filtro opcional por estado
-    if (estado) {
-      whereClause += ' AND er.nombre = $2';
-      params.push(estado);
-    }
-
-    const offset = (page - 1) * limit;
-
-    const query = `
-      SELECT 
-        r.id,
-        r.numero_reporte,
-        r.titulo,
-        r.descripcion,
-        cc.direccion,  -- CORREGIDO: cc.direccion
-        r.prioridad,
-        r.fecha_reporte,
-        
-        -- Datos del ciudadano
-        cc.nombre as ciudadano_nombre,
-        cc.apellido as ciudadano_apellido, 
-        cc.telefono as ciudadano_telefono,
-        
-        -- Tipo de problema
-        tp.nombre as tipo_problema,
-        tp.departamento_responsable,
-        
-        -- Estado actual
-        er.nombre as estado_actual,
-        er.color as estado_color,
-        
-        -- Técnico asignado (si existe)
-        ta.nombre as tecnico_nombre,
-        ta.apellido as tecnico_apellido,
-        
-        -- Zona
-        z.nombre as zona_nombre
-        
-      FROM reportes r
-      INNER JOIN ciudadanos_colaboradores cc ON r.id_ciudadano_colaborador = cc.id
-      INNER JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
-      INNER JOIN estados_reporte er ON r.id_estado = er.id
-      INNER JOIN zonas z ON r.id_zona = z.id
-      LEFT JOIN administradores ta ON r.id_administrador_asignado = ta.id
-      
-      ${whereClause}
-      
-      ORDER BY 
-        CASE 
-          WHEN er.nombre = 'Nuevo' THEN 1
-          WHEN er.nombre = 'Aprobado por Líder' THEN 2
-          WHEN er.nombre = 'Asignado' THEN 3
-          WHEN er.nombre = 'En Proceso' THEN 4
-          WHEN er.nombre = 'Resuelto' THEN 5
-          ELSE 6
-        END,
-        r.fecha_reporte DESC
-        
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `;
-
-    params.push(limit, offset);
-    const result = await pool.query(query, params);
-
-    // Contar total de reportes
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM reportes r
-      INNER JOIN estados_reporte er ON r.id_estado = er.id
-      ${whereClause}
-    `;
-    
-    const countResult = await pool.query(countQuery, params.slice(0, -2));
-
-    res.json({
-      success: true,
-      reportes: result.rows,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: parseInt(countResult.rows[0].total),
-        pages: Math.ceil(countResult.rows[0].total / limit)
-      }
-    });
-
-  } catch (error) {
-    console.error('Error al obtener reportes de zona:', error);
-    res.status(500).json({ 
-      error: 'Error al obtener reportes de la zona',
-      details: error.message 
-    });
-  }
-};
-
-// 5. VALIDAR RESOLUCIÓN DE TÉCNICO (Cerrar reporte)
+// 5. VALIDAR RESOLUCIÓN DE TÉCNICO (Mantener igual)
 const validarResolucion = async (req, res) => {
   try {
     const { reporteId } = req.params;

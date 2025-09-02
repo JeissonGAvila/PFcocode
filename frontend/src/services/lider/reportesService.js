@@ -1,4 +1,4 @@
-// frontend/src/services/lider/reportesService.js
+// frontend/src/services/lider/reportesService.js - ACTUALIZADO
 import { apiService, handleApiError } from '../api.js';
 
 export const liderReportesService = {
@@ -7,6 +7,17 @@ export const liderReportesService = {
   getPendientesAprobacion: async () => {
     try {
       const response = await apiService.get('/api/lider/reportes/pendientes');
+      
+      // Procesar datos para asegurar estructura consistente
+      if (response.success && response.reportes) {
+        response.reportes = response.reportes.map(reporte => ({
+          ...reporte,
+          fotos: Array.isArray(reporte.fotos) ? reporte.fotos : [],
+          tiene_fotos: (reporte.total_fotos || 0) > 0,
+          tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud)
+        }));
+      }
+      
       return response;
     } catch (error) {
       throw new Error(handleApiError(error));
@@ -25,6 +36,17 @@ export const liderReportesService = {
       
       const url = `/api/lider/reportes/zona${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await apiService.get(url);
+      
+      // Procesar datos
+      if (response.success && response.reportes) {
+        response.reportes = response.reportes.map(reporte => ({
+          ...reporte,
+          fotos: Array.isArray(reporte.fotos) ? reporte.fotos : [],
+          tiene_fotos: (reporte.total_fotos || 0) > 0,
+          tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud)
+        }));
+      }
+      
       return response;
     } catch (error) {
       throw new Error(handleApiError(error));
@@ -73,44 +95,32 @@ export const liderReportesService = {
     }
   },
 
-  // 📊 ESTADÍSTICAS DE REPORTES DE LA ZONA
-  getEstadisticasZona: async () => {
+  // 📊 OBTENER ESTADÍSTICAS MEJORADAS
+  getEstadisticasMejoradas: async () => {
     try {
-      const response = await apiService.get('/api/lider/reportes/estadisticas');
-      return response;
-    } catch (error) {
-      throw new Error(handleApiError(error));
-    }
-  },
+      const [reportesResponse, pendientesResponse] = await Promise.all([
+        liderReportesService.getReportesZona(),
+        liderReportesService.getPendientesAprobacion()
+      ]);
 
-  // 🔍 BUSCAR REPORTES EN LA ZONA
-  buscarReportes: async (termino, filtros = {}) => {
-    try {
-      const queryParams = new URLSearchParams();
-      queryParams.append('busqueda', termino);
-      
-      Object.keys(filtros).forEach(key => {
-        if (filtros[key]) {
-          queryParams.append(key, filtros[key]);
-        }
-      });
-      
-      const response = await apiService.get(`/api/lider/reportes/buscar?${queryParams.toString()}`);
-      return response;
-    } catch (error) {
-      throw new Error(handleApiError(error));
-    }
-  },
+      const reportes = reportesResponse.success ? reportesResponse.reportes : [];
+      const pendientes = pendientesResponse.success ? pendientesResponse.reportes : [];
 
-  // 📈 REPORTE DE ACTIVIDAD DE LA ZONA
-  getReporteActividad: async (fechaInicio, fechaFin) => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (fechaInicio) queryParams.append('fecha_inicio', fechaInicio);
-      if (fechaFin) queryParams.append('fecha_fin', fechaFin);
-      
-      const response = await apiService.get(`/api/lider/reportes/actividad?${queryParams.toString()}`);
-      return response;
+      // Calcular estadísticas con información visual
+      const estadisticas = {
+        total_reportes: reportes.length,
+        pendientes_aprobacion: pendientes.length,
+        con_fotos: reportes.filter(r => r.tiene_fotos).length,
+        con_ubicacion: reportes.filter(r => r.tiene_ubicacion_gps).length,
+        reportes_por_estado: {},
+        reportes_por_tipo: {}
+      };
+
+      return {
+        success: true,
+        estadisticas,
+        reportes_sample: reportes.slice(0, 5) // Muestra de reportes para dashboard
+      };
     } catch (error) {
       throw new Error(handleApiError(error));
     }
