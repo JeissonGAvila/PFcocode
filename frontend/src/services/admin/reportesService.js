@@ -1,14 +1,46 @@
-// frontend/src/services/admin/reportesService.js
+// frontend/src/services/admin/reportesService.js - ACTUALIZADO CON DETALLES
 import { apiService } from '../api.js';
 
 const reportesService = {
-  // Obtener todos los reportes
+  // Obtener todos los reportes CON FOTOS Y UBICACIÓN
   getAll: async () => {
     try {
       const response = await apiService.get('/api/admin/reportes');
+      
+      // Procesar datos para asegurar estructura consistente
+      if (response.success && response.reportes) {
+        response.reportes = response.reportes.map(reporte => ({
+          ...reporte,
+          fotos: Array.isArray(reporte.fotos) ? reporte.fotos : [],
+          tiene_fotos: (reporte.total_fotos || 0) > 0,
+          tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud)
+        }));
+      }
+      
       return response;
     } catch (error) {
       throw new Error(error.message || 'Error al obtener reportes');
+    }
+  },
+
+  // NUEVO: Obtener detalles completos de un reporte específico
+  getDetalle: async (reporteId) => {
+    try {
+      const response = await apiService.get(`/api/admin/reportes/${reporteId}/detalle`);
+      
+      // Procesar datos del reporte detallado
+      if (response.success && response.reporte) {
+        response.reporte = {
+          ...response.reporte,
+          fotos: Array.isArray(response.reporte.fotos) ? response.reporte.fotos : [],
+          tiene_fotos: !!(response.reporte.fotos && response.reporte.fotos.length > 0),
+          tiene_ubicacion_gps: !!(response.reporte.latitud && response.reporte.longitud)
+        };
+      }
+      
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al obtener detalle del reporte');
     }
   },
 
@@ -64,8 +96,10 @@ const reportesService = {
       const response = await apiService.get('/api/admin/reportes');
       return { 
         success: true, 
-        message: 'Conexión exitosa',
-        total: response.reportes?.length || 0
+        message: 'Conexión exitosa con reportes admin',
+        total: response.reportes?.length || 0,
+        con_fotos: response.reportes?.filter(r => r.tiene_fotos).length || 0,
+        con_ubicacion: response.reportes?.filter(r => r.tiene_ubicacion_gps).length || 0
       };
     } catch (error) {
       return { 
@@ -76,7 +110,7 @@ const reportesService = {
   }
 };
 
-// Datos estáticos útiles
+// Datos estáticos útiles (sin cambios)
 export const estadosDisponibles = [
   { id: 1, nombre: 'Nuevo', color: '#3B82F6' },
   { id: 2, nombre: 'Aprobado por Líder', color: '#10B981' },
@@ -95,5 +129,25 @@ export const tiposProblemaDisponibles = [
   'Alumbrado Público',
   'Recolección de Basura'
 ];
+
+// NUEVA: Función para validar si el reporte tiene evidencia completa
+export const validarEvidenciaCompleta = (reporte) => {
+  const validacion = {
+    esCompleto: false,
+    tieneUbicacion: !!(reporte.latitud && reporte.longitud),
+    tieneFotos: !!(reporte.fotos && reporte.fotos.length > 0),
+    tieneDireccion: !!(reporte.direccion && reporte.direccion.length >= 10),
+    puntuacion: 0
+  };
+
+  // Calcular puntuación de evidencia
+  if (validacion.tieneUbicacion) validacion.puntuacion += 40;
+  if (validacion.tieneFotos) validacion.puntuacion += 40;
+  if (validacion.tieneDireccion) validacion.puntuacion += 20;
+
+  validacion.esCompleto = validacion.puntuacion >= 80;
+
+  return validacion;
+};
 
 export default reportesService;
