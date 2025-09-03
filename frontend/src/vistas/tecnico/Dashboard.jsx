@@ -1,4 +1,4 @@
-// frontend/src/vistas/tecnico/Dashboard.jsx - CORREGIDO
+// frontend/src/vistas/tecnico/Dashboard.jsx - ACTUALIZADO CON FOTOS Y GPS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -30,7 +30,8 @@ import {
   IconButton,
   Tooltip,
   LinearProgress,
-  CircularProgress
+  CircularProgress,
+  Badge
 } from '@mui/material';
 import {
   Engineering as EngineeringIcon,
@@ -48,11 +49,25 @@ import {
   Build as BuildIcon,
   AccessTime as TimeIcon,
   Person as PersonIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Visibility as ViewIcon,
+  PhotoCamera as CameraIcon,
+  MyLocation as GPSIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
-import tecnicoService, { estadosPermitidosTecnico, coloresEstados, tiposSeguimiento } from '../../services/tecnico/tecnicoService.js';
+import tecnicoService, { 
+  estadosPermitidosTecnico, 
+  coloresEstados, 
+  tiposSeguimiento,
+  validarEvidenciaVisual,
+  getEnlacesNavegacion
+} from '../../services/tecnico/tecnicoService.js';
+
+// Importar los nuevos componentes
+import GaleriaFotosTecnico from '../../components/tecnico/GaleriaFotosTecnico.jsx';
+import MapaUbicacionTecnico from '../../components/tecnico/MapaUbicacionTecnico.jsx';
 
 const DashboardTecnico = () => {
   const { user, isAuthenticated, isTecnico } = useAuth();
@@ -68,8 +83,11 @@ const DashboardTecnico = () => {
   const [openCambiarEstado, setOpenCambiarEstado] = useState(false);
   const [openSeguimiento, setOpenSeguimiento] = useState(false);
   const [openHistorial, setOpenHistorial] = useState(false);
+  const [openDetalles, setOpenDetalles] = useState(false); // NUEVO
   const [selectedReporte, setSelectedReporte] = useState(null);
+  const [reporteDetalle, setReporteDetalle] = useState(null); // NUEVO
   const [historialReporte, setHistorialReporte] = useState([]);
+  const [tabDetalles, setTabDetalles] = useState(0); // NUEVO
   
   // Estados para formularios
   const [nuevoEstado, setNuevoEstado] = useState('');
@@ -109,7 +127,6 @@ const DashboardTecnico = () => {
       setLoading(true);
       setError('');
       
-      // SOLUCIÓN: Usar el ID real del usuario autenticado
       const tecnicoId = user.id;
       
       console.log(`Cargando datos para técnico ID: ${tecnicoId}, Departamento: ${user.departamento}`);
@@ -122,7 +139,7 @@ const DashboardTecnico = () => {
       if (reportesResponse.success) {
         setReportes(reportesResponse.reportes || []);
         setEstadisticas(reportesResponse.estadisticas || {});
-        console.log(`✅ Cargados ${reportesResponse.reportes?.length || 0} reportes`);
+        console.log(`Cargados ${reportesResponse.reportes?.length || 0} reportes con fotos y GPS`);
       } else {
         throw new Error(reportesResponse.error || 'Error al obtener reportes');
       }
@@ -135,6 +152,25 @@ const DashboardTecnico = () => {
       console.error('Error al cargar datos del técnico:', error);
       setError(error.message);
       mostrarSnackbar('Error al cargar datos: ' + error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // NUEVA: Cargar detalles completos de un reporte
+  const cargarDetallesReporte = async (reporteId) => {
+    try {
+      setLoading(true);
+      const response = await tecnicoService.getReporteDetalle(reporteId);
+      
+      if (response.success) {
+        setReporteDetalle(response.reporte);
+      } else {
+        mostrarSnackbar('Error al cargar detalles del reporte', 'error');
+      }
+    } catch (error) {
+      console.error('Error al cargar detalles:', error);
+      mostrarSnackbar('Error al cargar detalles: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -175,6 +211,14 @@ const DashboardTecnico = () => {
     } catch (error) {
       mostrarSnackbar('Error al cargar historial: ' + error.message, 'error');
     }
+  };
+
+  // NUEVA: Función para abrir modal de detalles completos
+  const abrirModalDetalles = async (reporte) => {
+    setSelectedReporte(reporte);
+    setTabDetalles(0);
+    setOpenDetalles(true);
+    await cargarDetallesReporte(reporte.id);
   };
 
   // Funciones de acción
@@ -301,7 +345,7 @@ const DashboardTecnico = () => {
       <Box p={3}>
         {/* Alerta de Departamento */}
         <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>Acceso Restringido:</strong> Solo puedes ver y gestionar reportes del departamento de <strong>{user?.departamento}</strong>
+          <strong>Panel Técnico con Evidencia Visual:</strong> Ahora puedes ver las fotos y ubicación GPS que proporcionó el ciudadano para cada reporte de <strong>{user?.departamento}</strong>
         </Alert>
 
         {error && (
@@ -348,7 +392,7 @@ const DashboardTecnico = () => {
         {/* TAB 0: Mis Reportes */}
         {tabValue === 0 && (
           <Box>
-            {/* Estadísticas rápidas */}
+            {/* Estadísticas mejoradas con fotos y GPS */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
               <Grid item xs={12} sm={6} md={3}>
                 <Card elevation={2}>
@@ -366,12 +410,12 @@ const DashboardTecnico = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card elevation={2}>
                   <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                    <ScheduleIcon color="warning" sx={{ fontSize: 30, mb: 1 }} />
-                    <Typography variant="h6" color="warning.main">
-                      {estadisticas.pendientes || 0}
+                    <CameraIcon color="info" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="info.main">
+                      {estadisticas.con_fotos || 0}
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                      Pendientes
+                      Con Evidencia Fotográfica
                     </Typography>
                   </CardContent>
                 </Card>
@@ -379,12 +423,12 @@ const DashboardTecnico = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card elevation={2}>
                   <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                    <WarningIcon color="error" sx={{ fontSize: 30, mb: 1 }} />
-                    <Typography variant="h6" color="error.main">
-                      {estadisticas.en_proceso || 0}
+                    <GPSIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
+                    <Typography variant="h6" color="success.main">
+                      {estadisticas.con_ubicacion || 0}
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                      En Proceso
+                      Con Ubicación GPS
                     </Typography>
                   </CardContent>
                 </Card>
@@ -404,102 +448,140 @@ const DashboardTecnico = () => {
               </Grid>
             </Grid>
 
-            {/* Lista de reportes */}
+            {/* Lista de reportes mejorada */}
             {reportes.length > 0 ? (
               <Grid container spacing={3}>
-                {reportes.map((reporte) => (
-                  <Grid item xs={12} md={6} key={reporte.id}>
-                    <Card elevation={3}>
-                      <CardContent>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                          <Typography variant="h6" gutterBottom>
-                            {reporte.titulo}
+                {reportes.map((reporte) => {
+                  const evidencia = validarEvidenciaVisual(reporte);
+                  
+                  return (
+                    <Grid item xs={12} md={6} key={reporte.id}>
+                      <Card elevation={3}>
+                        <CardContent>
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                            <Typography variant="h6" gutterBottom>
+                              {reporte.titulo}
+                            </Typography>
+                            <Box display="flex" gap={1}>
+                              <Chip 
+                                label={reporte.estado}
+                                color={getEstadoColor(reporte.estado)}
+                                size="small"
+                              />
+                              {evidencia.esCompleto && (
+                                <Chip 
+                                  label="Evidencia Completa"
+                                  color="success"
+                                  size="small"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+
+                          <Typography variant="body2" color="textSecondary" gutterBottom>
+                            <strong>#{reporte.numero_reporte}</strong> | {reporte.tipo_problema}
                           </Typography>
-                          <Chip 
-                            label={reporte.estado}
-                            color={getEstadoColor(reporte.estado)}
-                            size="small"
-                          />
-                        </Box>
 
-                        <Typography variant="body2" color="textSecondary" gutterBottom>
-                          <strong>#{reporte.numero_reporte}</strong> | {reporte.tipo_problema}
-                        </Typography>
-
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                          {reporte.descripcion}
-                        </Typography>
-
-                        <Box display="flex" alignItems="center" mb={1}>
-                          <LocationIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
-                          <Typography variant="body2" color="textSecondary">
-                            {reporte.direccion}
+                          <Typography variant="body2" sx={{ mb: 2 }}>
+                            {reporte.descripcion.length > 100 ? 
+                              `${reporte.descripcion.substring(0, 100)}...` : 
+                              reporte.descripcion
+                            }
                           </Typography>
-                        </Box>
 
-                        <Box display="flex" alignItems="center" mb={1}>
-                          <PersonIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
-                          <Typography variant="body2" color="textSecondary">
-                            Reportado por: {reporte.reportado_por}
-                          </Typography>
-                        </Box>
-
-                        {reporte.telefono_contacto && (
-                          <Box display="flex" alignItems="center" mb={2}>
-                            <PhoneIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
+                          {/* Información de ubicación con indicadores visuales */}
+                          <Box display="flex" alignItems="center" mb={1}>
+                            <LocationIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
                             <Typography variant="body2" color="textSecondary">
-                              {reporte.telefono_contacto}
+                              {reporte.direccion}
+                            </Typography>
+                            {reporte.tiene_ubicacion_gps && (
+                              <Chip 
+                                icon={<GPSIcon />}
+                                label="GPS"
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                                sx={{ ml: 1 }}
+                              />
+                            )}
+                          </Box>
+
+                          {/* Evidencia visual */}
+                          <Box display="flex" alignItems="center" mb={2}>
+                            {reporte.tiene_fotos && (
+                              <Badge badgeContent={reporte.total_fotos} color="primary">
+                                <Chip 
+                                  icon={<CameraIcon />}
+                                  label="Fotos"
+                                  size="small"
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ mr: 1 }}
+                                />
+                              </Badge>
+                            )}
+                            
+                            <Box display="flex" alignItems="center">
+                              <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'grey.600' }} />
+                              <Typography variant="body2" color="textSecondary">
+                                {reporte.reportado_por}
+                              </Typography>
+                              {reporte.telefono_contacto && (
+                                <PhoneIcon fontSize="small" sx={{ ml: 1, mr: 0.5, color: 'grey.600' }} />
+                              )}
+                            </Box>
+                          </Box>
+
+                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Chip 
+                              label={`Prioridad: ${reporte.prioridad}`}
+                              color={getPrioridadColor(reporte.prioridad)}
+                              variant="outlined"
+                              size="small"
+                            />
+                            <Typography variant="caption" color="textSecondary">
+                              Asignado hace {reporte.dias_asignado || 0} días
                             </Typography>
                           </Box>
-                        )}
 
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                          <Chip 
-                            label={`Prioridad: ${reporte.prioridad}`}
-                            color={getPrioridadColor(reporte.prioridad)}
-                            variant="outlined"
-                            size="small"
-                          />
-                          <Typography variant="caption" color="textSecondary">
-                            Asignado hace {reporte.dias_asignado || 0} días
-                          </Typography>
-                        </Box>
+                          <Divider sx={{ my: 2 }} />
 
-                        <Divider sx={{ my: 2 }} />
-
-                        {/* Botones de acción */}
-                        <Box display="flex" gap={1} flexWrap="wrap">
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="primary"
-                            startIcon={<StartIcon />}
-                            onClick={() => abrirModalCambiarEstado(reporte)}
-                            disabled={getEstadosPermitidos(reporte.estado).length === 0}
-                          >
-                            Cambiar Estado
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<CommentIcon />}
-                            onClick={() => abrirModalSeguimiento(reporte)}
-                          >
-                            Seguimiento
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<HistoryIcon />}
-                            onClick={() => abrirModalHistorial(reporte)}
-                          >
-                            Historial
-                          </Button>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
+                          {/* Botones de acción mejorados */}
+                          <Box display="flex" gap={1} flexWrap="wrap">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="primary"
+                              startIcon={<ViewIcon />}
+                              onClick={() => abrirModalDetalles(reporte)}
+                            >
+                              Ver Detalles
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="primary"
+                              startIcon={<StartIcon />}
+                              onClick={() => abrirModalCambiarEstado(reporte)}
+                              disabled={getEstadosPermitidos(reporte.estado).length === 0}
+                            >
+                              Cambiar Estado
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<CommentIcon />}
+                              onClick={() => abrirModalSeguimiento(reporte)}
+                            >
+                              Seguimiento
+                            </Button>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
               </Grid>
             ) : (
               <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
@@ -523,7 +605,7 @@ const DashboardTecnico = () => {
           </Box>
         )}
 
-        {/* TAB 1: Estadísticas */}
+        {/* TAB 1: Estadísticas - Sin cambios */}
         {tabValue === 1 && (
           <Box>
             <Typography variant="h5" gutterBottom>
@@ -545,6 +627,18 @@ const DashboardTecnico = () => {
                     </ListItem>
                     <ListItem>
                       <ListItemText
+                        primary="Reportes con evidencia fotográfica"
+                        secondary={`${estadisticas.con_fotos || 0} de ${estadisticas.total_asignados || 0}`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Reportes con ubicación GPS"
+                        secondary={`${estadisticas.con_ubicacion || 0} de ${estadisticas.total_asignados || 0}`}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
                         primary="Reportes resueltos"
                         secondary={estadisticas.resueltos || 0}
                       />
@@ -556,12 +650,6 @@ const DashboardTecnico = () => {
                           `${parseFloat(estadisticas.promedio_dias_resolucion).toFixed(1)} días` : 
                           'No disponible'
                         }
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemText
-                        primary="Reportes críticos atendidos"
-                        secondary={estadisticas.criticos || 0}
                       />
                     </ListItem>
                   </List>
@@ -608,7 +696,7 @@ const DashboardTecnico = () => {
           </Box>
         )}
 
-        {/* TAB 2: Herramientas */}
+        {/* TAB 2: Herramientas - Sin cambios */}
         {tabValue === 2 && (
           <Box>
             <Typography variant="h5" gutterBottom>
@@ -665,7 +753,183 @@ const DashboardTecnico = () => {
         )}
       </Box>
 
-      {/* Modal Cambiar Estado */}
+      {/* NUEVO: Modal Detalles Completos con Fotos y GPS */}
+      <Dialog open={openDetalles} onClose={() => setOpenDetalles(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            Detalles del Reporte #{selectedReporte?.numero_reporte}
+          </Typography>
+          <IconButton onClick={() => setOpenDetalles(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {reporteDetalle && (
+            <Box>
+              <Paper sx={{ mb: 2 }}>
+                <Tabs value={tabDetalles} onChange={(e, newValue) => setTabDetalles(newValue)}>
+                  <Tab label="Información General" />
+                  <Tab 
+                    label={`Evidencia Fotográfica (${reporteDetalle.fotos?.length || 0})`}
+                    disabled={!reporteDetalle.tiene_fotos}
+                  />
+                  <Tab 
+                    label="Ubicación GPS" 
+                    disabled={!reporteDetalle.tiene_ubicacion_gps}
+                  />
+                </Tabs>
+              </Paper>
+
+              {tabDetalles === 0 && (
+                <Box>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        {reporteDetalle.titulo}
+                      </Typography>
+                      
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Descripción:</strong>
+                      </Typography>
+                      <Typography variant="body2" paragraph>
+                        {reporteDetalle.descripcion}
+                      </Typography>
+                      
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Dirección:</strong>
+                      </Typography>
+                      <Typography variant="body2" paragraph>
+                        {reporteDetalle.direccion}
+                      </Typography>
+
+                      <Box display="flex" gap={1} mb={2}>
+                        <Chip 
+                          label={reporteDetalle.estado}
+                          color={getEstadoColor(reporteDetalle.estado)}
+                        />
+                        <Chip 
+                          label={reporteDetalle.prioridad}
+                          color={getPrioridadColor(reporteDetalle.prioridad)}
+                        />
+                      </Box>
+
+                      {/* Evidencia visual disponible */}
+                      <Alert 
+                        severity={reporteDetalle.tiene_fotos && reporteDetalle.tiene_ubicacion_gps ? 'success' : 'info'} 
+                        sx={{ mb: 2 }}
+                      >
+                        <Typography variant="body2">
+                          <strong>Evidencia disponible:</strong>
+                          {reporteDetalle.tiene_fotos && ' ✓ Fotos del problema'}
+                          {reporteDetalle.tiene_ubicacion_gps && ' ✓ Ubicación GPS precisa'}
+                          {!reporteDetalle.tiene_fotos && !reporteDetalle.tiene_ubicacion_gps && 
+                            ' Solo información textual disponible'}
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        Información del Ciudadano
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Nombre:</strong> {reporteDetalle.creador_nombre} {reporteDetalle.creador_apellido}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Teléfono:</strong> {reporteDetalle.creador_telefono || 'No disponible'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Correo:</strong> {reporteDetalle.creador_correo || 'No disponible'}
+                      </Typography>
+                      
+                      <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                        Información Técnica
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Tipo:</strong> {reporteDetalle.tipo_problema}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Departamento:</strong> {reporteDetalle.departamento_responsable}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Zona:</strong> {reporteDetalle.zona_nombre}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Tiempo estimado:</strong> {reporteDetalle.tiempo_estimado_dias || 'No especificado'} días
+                      </Typography>
+
+                      {/* Enlaces de navegación si hay GPS */}
+                      {reporteDetalle.tiene_ubicacion_gps && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="body2" gutterBottom>
+                            <strong>Enlaces de Navegación:</strong>
+                          </Typography>
+                          <Box display="flex" gap={1} flexWrap="wrap">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => window.open(getEnlacesNavegacion(reporteDetalle.latitud, reporteDetalle.longitud).googleMaps, '_blank')}
+                            >
+                              Google Maps
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => window.open(getEnlacesNavegacion(reporteDetalle.latitud, reporteDetalle.longitud).waze, '_blank')}
+                            >
+                              Waze
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
+              {tabDetalles === 1 && reporteDetalle.tiene_fotos && (
+                <GaleriaFotosTecnico 
+                  fotos={reporteDetalle.fotos} 
+                  maxHeight={400}
+                  titulo="Evidencia Fotográfica del Ciudadano"
+                />
+              )}
+
+              {tabDetalles === 2 && reporteDetalle.tiene_ubicacion_gps && (
+                <MapaUbicacionTecnico 
+                  latitud={reporteDetalle.latitud}
+                  longitud={reporteDetalle.longitud}
+                  metodo_ubicacion={reporteDetalle.metodo_ubicacion}
+                  precision_metros={reporteDetalle.precision_metros}
+                  direccion={reporteDetalle.direccion}
+                  height={450}
+                  titulo="Ubicación Exacta del Problema"
+                  mostrarRuta={true}
+                />
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDetalles(false)}>
+            Cerrar
+          </Button>
+          {selectedReporte && getEstadosPermitidos(selectedReporte.estado).length > 0 && (
+            <Button 
+              variant="contained" 
+              color="warning"
+              onClick={() => {
+                setOpenDetalles(false);
+                abrirModalCambiarEstado(selectedReporte);
+              }}
+            >
+              Cambiar Estado
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal Cambiar Estado - Sin cambios */}
       <Dialog open={openCambiarEstado} onClose={() => setOpenCambiarEstado(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           Cambiar Estado del Reporte
@@ -719,7 +983,7 @@ const DashboardTecnico = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal Agregar Seguimiento */}
+      {/* Modal Agregar Seguimiento - Sin cambios */}
       <Dialog open={openSeguimiento} onClose={() => setOpenSeguimiento(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           Agregar Seguimiento
@@ -775,7 +1039,7 @@ const DashboardTecnico = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal Historial */}
+      {/* Modal Historial - Sin cambios */}
       <Dialog open={openHistorial} onClose={() => setOpenHistorial(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           Historial del Reporte
@@ -846,9 +1110,9 @@ const DashboardTecnico = () => {
       {/* Footer Info */}
       <Box mt={4} p={2} bgcolor="warning.50" borderRadius={1} border="1px solid" borderColor="warning.200">
         <Typography variant="body2" color="textSecondary" textAlign="center">
-          <strong>Permisos de Técnico:</strong> Ver y gestionar reportes de tu departamento | 
-          Cambiar estados de reportes asignados | Subir evidencia | Comunicarse con líderes y ciudadanos |
-          <strong> NO puedes:</strong> Ver reportes de otros departamentos | Asignar reportes | Gestionar usuarios
+          <strong>Panel Técnico Mejorado:</strong> Ahora puedes ver fotos y ubicación GPS del ciudadano | 
+          Gestionar reportes de tu departamento | Cambiar estados | Subir evidencia | Navegación directa |
+          <strong> Nuevas funciones:</strong> Vista completa de evidencia visual | Enlaces de navegación GPS | Validación de evidencia completa
         </Typography>
       </Box>
     </Box>

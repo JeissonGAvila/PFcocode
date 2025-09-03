@@ -1,8 +1,9 @@
-// backend/routes/tecnico/reportesRoutes.js - CORREGIDO sin conflictos de rutas
+// backend/routes/tecnico/reportesRoutes.js - ACTUALIZADO CON RUTA DE DETALLE
 const express = require('express');
 const router = express.Router();
 const {
   getMisReportes,
+  getReporteDetalle,     // NUEVO
   cambiarEstadoReporte,
   agregarSeguimiento,
   getHistorialReporte,
@@ -28,6 +29,9 @@ router.get('/stats/:tecnicoId', getEstadisticasTecnico);
 // RUTAS PRINCIPALES
 router.get('/', getMisReportes);
 router.get('/:tecnicoId', getMisReportes);
+
+// NUEVO: DETALLE COMPLETO DE REPORTE (debe ir antes de las rutas genéricas :id)
+router.get('/:id/detalle', getReporteDetalle);
 
 // ACCIONES SOBRE REPORTES ESPECÍFICOS
 router.put('/:id/estado', cambiarEstadoReporte);

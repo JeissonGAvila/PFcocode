@@ -1,7 +1,7 @@
-// backend/controllers/tecnico/reportesController.js - CORREGIDO
+// backend/controllers/tecnico/reportesController.js - ACTUALIZADO CON FOTOS Y UBICACIÓN
 const pool = require('../../models/db');
 
-// Obtener reportes asignados al técnico (SOLO de su departamento)
+// Obtener reportes asignados al técnico CON FOTOS Y UBICACIÓN (SOLO de su departamento)
 const getMisReportes = async (req, res) => {
   try {
     // CORREGIDO: Usar req.user del JWT (viene del middleware)
@@ -29,7 +29,7 @@ const getMisReportes = async (req, res) => {
     
     const tecnico = tecnicoResult.rows[0];
     
-    // Obtener reportes SOLO de su departamento Y que estén asignados
+    // Obtener reportes SOLO de su departamento Y que estén asignados CON FOTOS Y UBICACIÓN
     const reportesQuery = `
       SELECT 
         r.id,
@@ -40,24 +40,70 @@ const getMisReportes = async (req, res) => {
         r.prioridad,
         r.fecha_reporte,
         r.fecha_asignacion,
+        r.latitud,
+        r.longitud,
+        r.metodo_ubicacion,
+        r.precision_metros,
+        
         er.nombre as estado,
         er.id as id_estado,
         tp.nombre as tipo_problema,
         tp.departamento_responsable,
         tp.tiempo_estimado_dias,
+        
         CASE 
           WHEN r.tipo_usuario_creador = 'lider' THEN u.nombre || ' ' || u.apellido
           WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.nombre || ' ' || c.apellido
           ELSE 'Usuario desconocido'
         END as reportado_por,
+        
         CASE 
           WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.telefono
           WHEN r.tipo_usuario_creador = 'lider' THEN u.telefono
           ELSE NULL
         END as telefono_contacto,
+        
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.correo
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.correo
+          ELSE NULL
+        END as correo_contacto,
+        
         z.nombre as zona,
+        z.numero_zona,
+        
+        -- NUEVO: Fotos del reporte (ARRAY de fotos del ciudadano)
+        (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ar.id,
+              'nombre_archivo', ar.nombre_archivo,
+              'url_archivo', ar.url_archivo,
+              'tipo_archivo', ar.tipo_archivo,
+              'tamano_kb', ar.tamano_kb,
+              'fecha_subida', ar.fecha_subida,
+              'es_evidencia_inicial', ar.es_evidencia_inicial,
+              'subido_por_tipo', ar.subido_por_tipo
+            )
+          )
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as fotos,
+        
+        -- NUEVO: Contador de fotos
+        (
+          SELECT COUNT(*) 
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+            AND ar.es_evidencia_inicial = TRUE
+        ) as total_fotos,
+        
         -- Calcular días transcurridos desde asignación
         EXTRACT(DAYS FROM (CURRENT_TIMESTAMP - r.fecha_asignacion)) as dias_asignado
+        
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
@@ -79,6 +125,14 @@ const getMisReportes = async (req, res) => {
     
     const reportesResult = await pool.query(reportesQuery, [tecnicoId, tecnico.departamento]);
     
+    // Procesar resultados para incluir información de ubicación y fotos
+    const reportesProcesados = reportesResult.rows.map(reporte => ({
+      ...reporte,
+      tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud),
+      tiene_fotos: (reporte.total_fotos || 0) > 0,
+      fotos: reporte.fotos || [] // Asegurar que fotos sea un array
+    }));
+    
     res.json({
       success: true,
       tecnico: {
@@ -86,12 +140,14 @@ const getMisReportes = async (req, res) => {
         departamento: tecnico.departamento,
         correo: tecnico.correo
       },
-      reportes: reportesResult.rows,
+      reportes: reportesProcesados,
       estadisticas: {
-        total_asignados: reportesResult.rows.length,
-        pendientes: reportesResult.rows.filter(r => r.estado === 'Asignado').length,
-        en_proceso: reportesResult.rows.filter(r => r.estado === 'En Proceso').length,
-        pendiente_materiales: reportesResult.rows.filter(r => r.estado === 'Pendiente Materiales').length
+        total_asignados: reportesProcesados.length,
+        pendientes: reportesProcesados.filter(r => r.estado === 'Asignado').length,
+        en_proceso: reportesProcesados.filter(r => r.estado === 'En Proceso').length,
+        pendiente_materiales: reportesProcesados.filter(r => r.estado === 'Pendiente Materiales').length,
+        con_fotos: reportesProcesados.filter(r => r.tiene_fotos).length,
+        con_ubicacion: reportesProcesados.filter(r => r.tiene_ubicacion_gps).length
       }
     });
   } catch (error) {
@@ -102,7 +158,134 @@ const getMisReportes = async (req, res) => {
   }
 };
 
-// Cambiar estado de reporte (SOLO estados permitidos para técnico)
+// NUEVO: Obtener detalles completos de un reporte específico para técnico
+const getReporteDetalle = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tecnicoId = req.user.id;
+    
+    const query = `
+      SELECT 
+        r.id,
+        r.numero_reporte,
+        r.titulo,
+        r.descripcion,
+        r.direccion,
+        r.prioridad,
+        r.fecha_reporte,
+        r.fecha_asignacion,
+        r.latitud,
+        r.longitud,
+        r.metodo_ubicacion,
+        r.precision_metros,
+        
+        -- Estados
+        er.nombre as estado,
+        er.color as estado_color,
+        
+        -- Tipo de problema
+        tp.nombre as tipo_problema,
+        tp.descripcion as tipo_descripcion,
+        tp.departamento_responsable,
+        tp.tiempo_estimado_dias,
+        
+        -- Información completa del ciudadano/creador
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.nombre
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.nombre
+          ELSE 'Usuario'
+        END as creador_nombre,
+        
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.apellido
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.apellido
+          ELSE 'Desconocido'
+        END as creador_apellido,
+        
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.telefono
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.telefono
+          ELSE NULL
+        END as creador_telefono,
+        
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.correo
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.correo
+          ELSE NULL
+        END as creador_correo,
+        
+        r.tipo_usuario_creador,
+        
+        -- Zona completa
+        z.nombre as zona_nombre,
+        z.numero_zona,
+        z.descripcion as zona_descripcion,
+        
+        -- Fotos del reporte con más detalles
+        (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ar.id,
+              'nombre_archivo', ar.nombre_archivo,
+              'url_archivo', ar.url_archivo,
+              'tipo_archivo', ar.tipo_archivo,
+              'tamano_kb', ar.tamano_kb,
+              'fecha_subida', ar.fecha_subida,
+              'es_evidencia_inicial', ar.es_evidencia_inicial,
+              'subido_por_tipo', ar.subido_por_tipo
+            )
+          )
+          FROM archivos_reporte ar 
+          WHERE ar.id_reporte = r.id 
+            AND ar.estado = TRUE
+        ) as fotos
+        
+      FROM reportes r
+      INNER JOIN estados_reporte er ON r.id_estado = er.id
+      INNER JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
+      LEFT JOIN ciudadanos_colaboradores c ON r.id_ciudadano_colaborador = c.id
+      LEFT JOIN usuarios u ON r.id_usuario = u.id
+      LEFT JOIN zonas z ON r.id_zona = z.id
+      WHERE r.id = $1 
+        AND r.id_administrador_asignado = $2 
+        AND r.estado = TRUE
+    `;
+    
+    const result = await pool.query(query, [id, tecnicoId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Reporte no encontrado o no asignado a este técnico' 
+      });
+    }
+    
+    const reporte = result.rows[0];
+    
+    // Procesar resultado
+    const reporteProcesado = {
+      ...reporte,
+      tiene_ubicacion_gps: !!(reporte.latitud && reporte.longitud),
+      tiene_fotos: !!(reporte.fotos && reporte.fotos.length > 0),
+      fotos: reporte.fotos || []
+    };
+    
+    res.json({
+      success: true,
+      reporte: reporteProcesado
+    });
+    
+  } catch (error) {
+    console.error('Error al obtener detalle del reporte para técnico:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error al obtener detalle del reporte',
+      details: error.message 
+    });
+  }
+};
+
+// Cambiar estado de reporte (SOLO estados permitidos para técnico) - SIN CAMBIOS
 const cambiarEstadoReporte = async (req, res) => {
   const { id } = req.params;
   const { nuevo_estado, comentario } = req.body;
@@ -212,7 +395,7 @@ const cambiarEstadoReporte = async (req, res) => {
   }
 };
 
-// Agregar seguimiento/comentario a reporte
+// Agregar seguimiento/comentario a reporte - SIN CAMBIOS
 const agregarSeguimiento = async (req, res) => {
   const { id } = req.params;
   const { comentario, tiempo_invertido_horas, accion_tomada } = req.body;
@@ -264,7 +447,7 @@ const agregarSeguimiento = async (req, res) => {
   }
 };
 
-// Obtener historial de seguimiento de un reporte
+// Obtener historial de seguimiento de un reporte - SIN CAMBIOS
 const getHistorialReporte = async (req, res) => {
   const { id } = req.params;
   const tecnicoId = req.user.id; // CORREGIDO: usar req.user
@@ -326,7 +509,7 @@ const getHistorialReporte = async (req, res) => {
   }
 };
 
-// Obtener estadísticas del técnico
+// Obtener estadísticas del técnico - SIN CAMBIOS
 const getEstadisticasTecnico = async (req, res) => {
   const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
@@ -362,6 +545,7 @@ const getEstadisticasTecnico = async (req, res) => {
 
 module.exports = {
   getMisReportes,
+  getReporteDetalle, // NUEVO MÉTODO
   cambiarEstadoReporte,
   agregarSeguimiento,
   getHistorialReporte,
