@@ -1,4 +1,4 @@
-// frontend/src/vistas/liderCocode/Dashboard.jsx - COMPLETO CON BOTONES DE APROBACIÓN
+// frontend/src/vistas/liderCocode/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA COMPLETA
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -11,7 +11,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemButton,
   Chip,
   Paper,
   Divider,
@@ -29,11 +28,20 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Container,
+  Stack,
+  useTheme,
+  useMediaQuery,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Drawer,
+  Collapse,
+  Fab
 } from '@mui/material';
 import {
   Group as GroupIcon,
-  LocationCity as CityIcon,
   Assignment as ReporteIcon,
   People as PeopleIcon,
   Verified as VerifiedIcon,
@@ -52,7 +60,11 @@ import {
   Refresh as RefreshIcon,
   NotificationsActive as NotificationIcon,
   CheckCircle,
-  Cancel
+  Cancel,
+  Menu as MenuIcon,
+  Close as CloseIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
@@ -62,11 +74,19 @@ import ReportesPendientesAprobacion from '../../components/lider/ReportesPendien
 
 const DashboardLider = () => {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
+  
   const [tabValue, setTabValue] = useState(0);
   const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
+  
+  // Estados para UI responsiva
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [expandedCards, setExpandedCards] = useState({});
   
   // Estados para botones de aprobación
   const [modalAprobar, setModalAprobar] = useState(false);
@@ -104,7 +124,7 @@ const DashboardLider = () => {
   const [reportesZona, setReportesZona] = useState([]);
   const [reportesPendientes, setReportesPendientes] = useState([]);
 
-  // Estados para ciudadanos (mantener mock por ahora)
+  // Estados para ciudadanos
   const [ciudadanosZona, setCiudadanosZona] = useState([
     {
       id: 1,
@@ -222,6 +242,14 @@ const DashboardLider = () => {
     } catch (error) {
       console.error('Error al cargar reportes de zona:', error);
     }
+  };
+
+  // Toggle card expansion
+  const toggleCardExpansion = (cardId) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [cardId]: !prev[cardId]
+    }));
   };
 
   // Funciones para aprobar/rechazar
@@ -385,23 +413,15 @@ const DashboardLider = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    if (isMobile) {
+      setMobileDrawerOpen(false);
+    }
     
     if (newValue === 0) {
       cargarReportesZona();
     } else if (newValue === 3) {
       cargarReportesPendientes();
     }
-  };
-
-  const handleValidarReporte = (reporteId) => {
-    setReportesZona(prev => 
-      prev.map(reporte => 
-        reporte.id === reporteId 
-          ? { ...reporte, validadoLider: true }
-          : reporte
-      )
-    );
-    console.log(`Reporte ${reporteId} validado por líder`);
   };
 
   const handleVerificarCiudadano = (ciudadanoId) => {
@@ -412,128 +432,295 @@ const DashboardLider = () => {
           : ciudadano
       )
     );
-    console.log(`Ciudadano ${ciudadanoId} verificado`);
   };
+
+  // Header responsivo
+  const HeaderResponsivo = () => (
+    <Box bgcolor="success.main" color="white">
+      {/* Móvil Header */}
+      {isMobile && (
+        <AppBar position="static" color="transparent" elevation={0}>
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={() => setMobileDrawerOpen(true)}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" noWrap>
+                Panel Líder COCODE
+              </Typography>
+            </Box>
+            <Badge badgeContent={reportesPendientes.length} color="warning">
+              <NotificationIcon />
+            </Badge>
+          </Toolbar>
+        </AppBar>
+      )}
+
+      {/* Desktop Header */}
+      {!isMobile && (
+        <Box p={{ xs: 2, sm: 3 }}>
+          <Grid container alignItems="center" spacing={2}>
+            <Grid item xs={12} md={8}>
+              <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                <GroupIcon sx={{ fontSize: { xs: 32, md: 40 } }} />
+                <Typography variant={{ xs: "h5", md: "h4" }} component="h1">
+                  Panel Líder COCODE
+                </Typography>
+              </Stack>
+              
+              <Typography variant={{ xs: "subtitle1", md: "h6" }} gutterBottom>
+                Líder: {user?.nombre}
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, opacity: 0.9 }}>
+                <Chip 
+                  label={`Zona: ${user?.zona || 'Zona 1 Centro'}`}
+                  size="small"
+                  sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                />
+                <Chip 
+                  label="Presidente COCODE"
+                  size="small"
+                  sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                />
+                {!isMobile && (
+                  <Chip 
+                    label={user?.correo}
+                    size="small"
+                    sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                  />
+                )}
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                <Badge badgeContent={reportesPendientes.length} color="warning">
+                  <NotificationIcon />
+                </Badge>
+                
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<RefreshIcon />}
+                  onClick={handleRefrescar}
+                  disabled={loading}
+                  size={isMobile ? "small" : "medium"}
+                >
+                  {isMobile ? '' : 'Refrescar'}
+                </Button>
+                
+                <LogoutButton variant="text" color="inherit" />
+              </Stack>
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+    </Box>
+  );
+
+  // Navigation Drawer para móvil
+  const NavigationDrawer = () => (
+    <Drawer
+      anchor="left"
+      open={mobileDrawerOpen}
+      onClose={() => setMobileDrawerOpen(false)}
+      PaperProps={{
+        sx: { width: 280 }
+      }}
+    >
+      <Box sx={{ p: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">Menú Líder</Typography>
+          <IconButton onClick={() => setMobileDrawerOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        
+        <Stack spacing={1}>
+          <Button
+            fullWidth
+            variant={tabValue === 0 ? "contained" : "text"}
+            startIcon={<ReporteIcon />}
+            onClick={() => handleTabChange(null, 0)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Reportes de mi Zona
+          </Button>
+          
+          <Button
+            fullWidth
+            variant={tabValue === 1 ? "contained" : "text"}
+            startIcon={<PeopleIcon />}
+            onClick={() => handleTabChange(null, 1)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Ciudadanos ({ciudadanosZona.length})
+          </Button>
+          
+          <Button
+            fullWidth
+            variant={tabValue === 2 ? "contained" : "text"}
+            startIcon={<EngineeringIcon />}
+            onClick={() => handleTabChange(null, 2)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Coordinación
+          </Button>
+
+          <Button
+            fullWidth
+            variant={tabValue === 3 ? "contained" : "text"}
+            startIcon={<WarningIcon />}
+            onClick={() => handleTabChange(null, 3)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Pendientes ({reportesPendientes.length})
+          </Button>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+        
+        {/* Info del usuario en móvil */}
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Líder: {user?.nombre}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {user?.correo}
+          </Typography>
+          <Chip 
+            label={`Zona: ${user?.zona || 'Zona 1'}`}
+            size="small"
+            sx={{ mt: 1 }}
+          />
+        </Box>
+      </Box>
+    </Drawer>
+  );
 
   return (
     <Box>
-      {/* Header del Panel Líder */}
-      <Box 
-        bgcolor="success.main" 
-        color="white" 
-        p={3}
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-      >
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <GroupIcon sx={{ fontSize: 40 }} /> Panel Líder COCODE
-          </Typography>
-          <Typography variant="h6">
-            Líder: {user?.nombre}
-          </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            Zona: <strong>{user?.zona || 'Zona 1 Centro'}</strong> | 
-            Cargo: <strong>Presidente COCODE</strong> | {user?.correo}
-          </Typography>
-        </Box>
-        
-        <Box display="flex" alignItems="center" gap={2}>
-          <Badge badgeContent={reportesPendientes.length} color="warning">
-            <NotificationIcon />
-          </Badge>
-          
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<RefreshIcon />}
-            onClick={handleRefrescar}
-            disabled={loading}
-          >
-            Refrescar
-          </Button>
-          
-          <LogoutButton variant="text" />
-        </Box>
-      </Box>
+      {/* Header Responsivo */}
+      <HeaderResponsivo />
+      
+      {/* Navigation Drawer para móvil */}
+      <NavigationDrawer />
 
       {/* Contenido Principal */}
-      <Box p={3}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
         {/* Mensajes de estado */}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-            {error}
+            <Typography variant="body2">{error}</Typography>
           </Alert>
         )}
 
         {mensaje && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMensaje('')}>
-            {mensaje}
+            <Typography variant="body2">{mensaje}</Typography>
           </Alert>
         )}
 
         {/* Alerta de Responsabilidad Comunitaria */}
         <Alert severity="success" sx={{ mb: 3 }}>
-          <strong>Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
-          Coordinas con técnicos y validas reportes comunitarios.
-          {reportesPendientes.length > 0 && (
-            <strong> Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
-          )}
+          <Typography variant="body2">
+            <strong>Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
+            Coordinas con técnicos y validas reportes comunitarios.
+            {reportesPendientes.length > 0 && (
+              <strong> Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
+            )}
+          </Typography>
         </Alert>
 
-        {/* Estadísticas reales */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+        {/* Estadísticas reales - RESPONSIVAS */}
+        <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
+          <Grid item xs={6} sm={3}>
             <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <PeopleIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="primary">
+              <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                <PeopleIcon 
+                  color="primary" 
+                  sx={{ fontSize: { xs: 30, md: 40 }, mb: 1 }} 
+                />
+                <Typography variant={{ xs: "h5", md: "h4" }} color="primary">
                   {statsComunitarias.ciudadanosZona}
                 </Typography>
-                <Typography color="textSecondary" variant="body2">
+                <Typography 
+                  color="textSecondary" 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                >
                   Ciudadanos Zona
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={6} sm={3}>
             <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <WarningIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="warning.main">
+              <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                <WarningIcon 
+                  color="warning" 
+                  sx={{ fontSize: { xs: 30, md: 40 }, mb: 1 }} 
+                />
+                <Typography variant={{ xs: "h5", md: "h4" }} color="warning.main">
                   {statsComunitarias.reportesPendientesAprobacion}
                 </Typography>
-                <Typography color="textSecondary" variant="body2">
+                <Typography 
+                  color="textSecondary" 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                >
                   Pendientes Aprobación
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={6} sm={3}>
             <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <ReporteIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="info.main">
+              <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                <ReporteIcon 
+                  color="info" 
+                  sx={{ fontSize: { xs: 30, md: 40 }, mb: 1 }} 
+                />
+                <Typography variant={{ xs: "h5", md: "h4" }} color="info.main">
                   {statsComunitarias.reportesActivos}
                 </Typography>
-                <Typography color="textSecondary" variant="body2">
+                <Typography 
+                  color="textSecondary" 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                >
                   Reportes Activos
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid item xs={6} sm={3}>
             <Card elevation={3}>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <CheckIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-                <Typography variant="h4" color="success.main">
+              <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                <CheckIcon 
+                  color="success" 
+                  sx={{ fontSize: { xs: 30, md: 40 }, mb: 1 }} 
+                />
+                <Typography variant={{ xs: "h5", md: "h4" }} color="success.main">
                   {statsComunitarias.reportesResueltos}
                 </Typography>
-                <Typography color="textSecondary" variant="body2">
+                <Typography 
+                  color="textSecondary" 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                >
                   Reportes Resueltos
                 </Typography>
               </CardContent>
@@ -541,32 +728,59 @@ const DashboardLider = () => {
           </Grid>
         </Grid>
 
-        {/* Tabs actualizados */}
-        <Paper sx={{ mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="Reportes de mi Zona" />
-            <Tab label="Ciudadanos" />
-            <Tab label="Coordinación" />
-            <Tab label={`Pendientes Aprobación (${reportesPendientes.length})`} />
-          </Tabs>
-        </Paper>
+        {/* Tabs - Solo desktop */}
+        {!isMobile && (
+          <Paper sx={{ mb: 3 }}>
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange}
+              variant={isTablet ? "scrollable" : "fullWidth"}
+              scrollButtons="auto"
+              sx={{
+                '& .MuiTab-root': {
+                  minHeight: { xs: 56, md: 64 },
+                  fontSize: { xs: '0.8rem', md: '0.95rem' },
+                  fontWeight: 500,
+                  px: { xs: 1, md: 2 }
+                }
+              }}
+            >
+              <Tab label="Reportes de mi Zona" />
+              <Tab label="Ciudadanos" />
+              <Tab label="Coordinación" />
+              <Tab label={`Pendientes Aprobación (${reportesPendientes.length})`} />
+            </Tabs>
+          </Paper>
+        )}
 
-        {/* Tab 0 - Reportes de la Zona con datos reales */}
+        {/* Tab 0 - Reportes de la Zona - RESPONSIVO */}
         {tabValue === 0 && (
-          <Grid container spacing={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }}>
+            {/* Lista de reportes */}
             <Grid item xs={12} lg={8}>
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                <Box 
+                  display="flex" 
+                  justifyContent="space-between" 
+                  alignItems="center" 
+                  mb={2}
+                  flexDirection={{ xs: 'column', sm: 'row' }}
+                  gap={{ xs: 2, sm: 0 }}
+                >
                   <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ReporteIcon color="primary" /> Reportes de {user?.zona || 'mi Zona'}
+                    <ReporteIcon color="primary" /> 
+                    {isMobile ? `Reportes ${user?.zona || 'Zona'}` : `Reportes de ${user?.zona || 'mi Zona'}`}
                   </Typography>
                   <Button
                     variant="contained"
                     color="primary"
                     startIcon={<AddIcon />}
                     onClick={() => setOpenNuevoReporte(true)}
+                    size={isMobile ? "medium" : "medium"}
+                    fullWidth={isMobile}
+                    sx={{ maxWidth: { xs: '100%', sm: 'auto' } }}
                   >
-                    Crear Reporte Comunitario
+                    {isMobile ? 'Crear Reporte' : 'Crear Reporte Comunitario'}
                   </Button>
                 </Box>
                 <Divider sx={{ mb: 3 }} />
@@ -580,239 +794,413 @@ const DashboardLider = () => {
                     No hay reportes en tu zona actualmente.
                   </Alert>
                 ) : (
-                  reportesZona.map((reporte) => (
-                    <Card key={reporte.id} sx={{ mb: 2 }}>
-                      <CardContent>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                          <Box flex={1}>
-                            <Box display="flex" alignItems="center" gap={1} mb={1}>
-                              <Typography variant="h6">
-                                {reporte.titulo}
+                  <Stack spacing={2}>
+                    {reportesZona.map((reporte) => (
+                      <Card key={reporte.id} elevation={2}>
+                        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                          {/* Header del reporte - Responsivo */}
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                            <Box flex={1} sx={{ pr: { xs: 1, md: 2 } }}>
+                              <Box display="flex" alignItems="center" gap={1} mb={1} flexWrap="wrap">
+                                <Typography 
+                                  variant="h6"
+                                  sx={{ 
+                                    fontSize: { xs: '1rem', md: '1.25rem' },
+                                    lineHeight: 1.2
+                                  }}
+                                >
+                                  {isMobile && reporte.titulo.length > 40 ? 
+                                    `${reporte.titulo.substring(0, 40)}...` : 
+                                    reporte.titulo
+                                  }
+                                </Typography>
+                                
+                                {!isMobile && (
+                                  <IconButton 
+                                    size="small"
+                                    onClick={() => toggleCardExpansion(reporte.id)}
+                                  >
+                                    {expandedCards[reporte.id] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                  </IconButton>
+                                )}
+                              </Box>
+                              
+                              <Typography 
+                                variant="body2" 
+                                color="textSecondary" 
+                                gutterBottom
+                                sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                              >
+                                #{reporte.numero_reporte} | {new Date(reporte.fecha_reporte).toLocaleDateString()} | {reporte.tipo_problema}
                               </Typography>
+                              
+                              <Typography 
+                                variant="body1" 
+                                gutterBottom
+                                sx={{ fontSize: { xs: '0.85rem', md: '1rem' } }}
+                              >
+                                {isMobile && reporte.descripcion.length > 80 ? 
+                                  `${reporte.descripcion.substring(0, 80)}...` : 
+                                  reporte.descripcion
+                                }
+                              </Typography>
+                              
+                              {/* Información básica - Siempre visible */}
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: 0.5,
+                                  fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                  mb: 0.5
+                                }}
+                              >
+                                <HomeIcon fontSize="small" /> 
+                                {isMobile && reporte.direccion.length > 30 ? 
+                                  `${reporte.direccion.substring(0, 30)}...` : 
+                                  reporte.direccion
+                                }
+                              </Typography>
+                              
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: 0.5,
+                                  fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                  mb: 1
+                                }}
+                              >
+                                <PhoneIcon fontSize="small" /> 
+                                {reporte.ciudadano_nombre} {reporte.ciudadano_apellido} - {reporte.ciudadano_telefono}
+                              </Typography>
+
+                              {/* Información expandible en desktop */}
+                              <Collapse in={isMobile || expandedCards[reporte.id]}>
+                                {reporte.tecnico_nombre && (
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: 0.5, 
+                                      mt: 0.5,
+                                      fontSize: { xs: '0.8rem', md: '0.875rem' }
+                                    }}
+                                  >
+                                    <EngineeringIcon fontSize="small" /> 
+                                    Técnico: {reporte.tecnico_nombre} {reporte.tecnico_apellido}
+                                  </Typography>
+                                )}
+                              </Collapse>
                             </Box>
-                            <Typography variant="body2" color="textSecondary" gutterBottom>
-                              #{reporte.numero_reporte} | {new Date(reporte.fecha_reporte).toLocaleDateString()} | {reporte.tipo_problema}
-                            </Typography>
-                            <Typography variant="body1" gutterBottom>
-                              {reporte.descripcion}
-                            </Typography>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <HomeIcon fontSize="small" /> {reporte.direccion}
-                            </Typography>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                              <PhoneIcon fontSize="small" /> {reporte.ciudadano_nombre} {reporte.ciudadano_apellido} - {reporte.ciudadano_telefono}
-                            </Typography>
-                            {reporte.tecnico_nombre && (
-                              <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                <EngineeringIcon fontSize="small" /> Técnico: {reporte.tecnico_nombre} {reporte.tecnico_apellido}
-                              </Typography>
+                            
+                            {/* Estados y prioridad - Responsivos */}
+                            <Box sx={{ ml: { xs: 0, sm: 2 }, mt: { xs: 2, sm: 0 }, textAlign: { xs: 'left', sm: 'right' } }}>
+                              <Stack 
+                                direction={{ xs: 'row', sm: 'column' }} 
+                                spacing={1}
+                                alignItems={{ xs: 'center', sm: 'flex-end' }}
+                                flexWrap="wrap"
+                              >
+                                <Chip 
+                                  label={reporte.estado_actual}
+                                  color={getEstadoColor(reporte.estado_actual)}
+                                  size={isMobile ? "small" : "medium"}
+                                  sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                                />
+                                <Chip 
+                                  label={reporte.prioridad}
+                                  color={getPrioridadColor(reporte.prioridad)}
+                                  size="small"
+                                  sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
+                                />
+                              </Stack>
+                              
+                              {!isMobile && (
+                                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                                  Departamento: {reporte.departamento_responsable}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+
+                          <Divider sx={{ mb: 2 }} />
+                          
+                          {/* BOTONES CON FUNCIONALIDAD DE APROBACIÓN - RESPONSIVOS */}
+                          <Box 
+                            display="flex" 
+                            gap={1} 
+                            flexWrap="wrap"
+                            flexDirection={{ xs: 'column', sm: 'row' }}
+                          >
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<ViewIcon />}
+                              fullWidth={isMobile}
+                              sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                            >
+                              {isMobile ? 'Ver Detalles' : 'Ver Detalles'}
+                            </Button>
+                            
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<PhoneIcon />}
+                              fullWidth={isMobile}
+                              sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                            >
+                              {isMobile ? 'Contactar' : 'Contactar Ciudadano'}
+                            </Button>
+
+                            {/* BOTONES PARA APROBAR/RECHAZAR - SOLO SI ESTÁ EN ESTADO "Nuevo" */}
+                            {reporte.estado_actual === 'Nuevo' && (
+                              <Box 
+                                display="flex" 
+                                gap={1} 
+                                width={{ xs: '100%', sm: 'auto' }}
+                                mt={{ xs: 1, sm: 0 }}
+                              >
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="success"
+                                  startIcon={<CheckCircle />}
+                                  onClick={() => handleAprobarReporteDirecto(reporte)}
+                                  disabled={procesando}
+                                  fullWidth={isMobile}
+                                  sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                                >
+                                  Aprobar
+                                </Button>
+                                
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="error"
+                                  startIcon={<Cancel />}
+                                  onClick={() => handleRechazarReporteDirecto(reporte)}
+                                  disabled={procesando}
+                                  fullWidth={isMobile}
+                                  sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                                >
+                                  Rechazar
+                                </Button>
+                              </Box>
                             )}
                           </Box>
-                          
-                          <Box sx={{ ml: 2, textAlign: 'right' }}>
-                            <Chip 
-                              label={reporte.estado_actual}
-                              color={getEstadoColor(reporte.estado_actual)}
-                              sx={{ mb: 1, display: 'block' }}
-                            />
-                            <Chip 
-                              label={reporte.prioridad}
-                              color={getPrioridadColor(reporte.prioridad)}
-                              size="small"
-                            />
-                          </Box>
-                        </Box>
-
-                        <Divider sx={{ mb: 2 }} />
-                        
-                        {/* BOTONES CON FUNCIONALIDAD DE APROBACIÓN */}
-                        <Box display="flex" gap={1} flexWrap="wrap">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<ViewIcon />}
-                          >
-                            Ver Detalles
-                          </Button>
-                          
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<PhoneIcon />}
-                          >
-                            Contactar Ciudadano
-                          </Button>
-
-                          {/* BOTONES PARA APROBAR/RECHAZAR - SOLO SI ESTÁ EN ESTADO "Nuevo" */}
-                          {reporte.estado_actual === 'Nuevo' && (
-                            <>
-                              <Button
-                                size="small"
-                                variant="contained"
-                                color="success"
-                                startIcon={<CheckCircle />}
-                                onClick={() => handleAprobarReporteDirecto(reporte)}
-                                disabled={procesando}
-                              >
-                                Aprobar
-                              </Button>
-                              
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                startIcon={<Cancel />}
-                                onClick={() => handleRechazarReporteDirecto(reporte)}
-                                disabled={procesando}
-                              >
-                                Rechazar
-                              </Button>
-                            </>
-                          )}
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ))
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
                 )}
               </Paper>
             </Grid>
 
-            {/* Panel lateral con información comunitaria real */}
+            {/* Panel lateral - Responsivo */}
             <Grid item xs={12} lg={4}>
-              <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Resumen Comunitario
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box mb={2}>
-                  <Typography variant="body2" color="textSecondary">
-                    Reportes Pendientes Aprobación
+              <Stack spacing={{ xs: 2, md: 3 }}>
+                {/* Resumen Comunitario */}
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                  <Typography variant="h6" gutterBottom>
+                    Resumen Comunitario
                   </Typography>
-                  <Typography variant="h4" color="warning.main">
-                    {statsComunitarias.reportesPendientesAprobacion}
-                  </Typography>
-                </Box>
-                
-                <Box mb={2}>
-                  <Typography variant="body2" color="textSecondary">
-                    Reportes Activos
-                  </Typography>
-                  <Typography variant="h4" color="info.main">
-                    {statsComunitarias.reportesActivos}
-                  </Typography>
-                </Box>
-                
-                <Box mb={2}>
-                  <Typography variant="body2" color="textSecondary">
-                    Reportes Resueltos
-                  </Typography>
-                  <Typography variant="h4" color="success.main">
-                    {statsComunitarias.reportesResueltos}
-                  </Typography>
-                </Box>
-                
-                <Box>
-                  <Typography variant="body2" color="textSecondary">
-                    Próxima Reunión
-                  </Typography>
-                  <Typography variant="body1" fontWeight="bold">
-                    {statsComunitarias.proximaReunion}
-                  </Typography>
-                </Box>
-              </Paper>
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="textSecondary">
+                          Pendientes Aprobación
+                        </Typography>
+                        <Typography variant="h4" color="warning.main">
+                          {statsComunitarias.reportesPendientesAprobacion}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="textSecondary">
+                          Reportes Activos
+                        </Typography>
+                        <Typography variant="h4" color="info.main">
+                          {statsComunitarias.reportesActivos}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="textSecondary">
+                          Reportes Resueltos
+                        </Typography>
+                        <Typography variant="h4" color="success.main">
+                          {statsComunitarias.reportesResueltos}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Box textAlign="center">
+                        <Typography variant="body2" color="textSecondary">
+                          Próxima Reunión
+                        </Typography>
+                        <Typography variant="body1" fontWeight="bold">
+                          {statsComunitarias.proximaReunion}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
 
-              <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Acciones Rápidas
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box display="flex" flexDirection="column" gap={1}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<RefreshIcon />}
-                    onClick={handleRefrescar}
-                    disabled={loading}
-                  >
-                    Actualizar Datos
-                  </Button>
+                {/* Acciones Rápidas */}
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                  <Typography variant="h6" gutterBottom>
+                    Acciones Rápidas
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
                   
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<CampaignIcon />}
-                  >
-                    Convocar Reunión
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<TrendingIcon />}
-                  >
-                    Reporte Comunitario
-                  </Button>
-                  
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<EngineeringIcon />}
-                  >
-                    Contactar Técnicos
-                  </Button>
-                </Box>
-              </Paper>
+                  <Stack spacing={1}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<RefreshIcon />}
+                      onClick={handleRefrescar}
+                      disabled={loading}
+                      size={isMobile ? "medium" : "medium"}
+                    >
+                      Actualizar Datos
+                    </Button>
+                    
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<CampaignIcon />}
+                      size={isMobile ? "medium" : "medium"}
+                    >
+                      Convocar Reunión
+                    </Button>
+                    
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<TrendingIcon />}
+                      size={isMobile ? "medium" : "medium"}
+                    >
+                      Reporte Comunitario
+                    </Button>
+                    
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      startIcon={<EngineeringIcon />}
+                      size={isMobile ? "medium" : "medium"}
+                    >
+                      Contactar Técnicos
+                    </Button>
+                  </Stack>
+                </Paper>
+              </Stack>
             </Grid>
           </Grid>
         )}
 
-        {/* Tab 1 - Gestión de Ciudadanos (mantener como estaba) */}
+        {/* Tab 1 - Gestión de Ciudadanos - RESPONSIVO */}
         {tabValue === 1 && (
-          <Paper elevation={3} sx={{ p: 3 }}>
+          <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PeopleIcon color="primary" /> Ciudadanos de {user?.zona || 'mi Zona'}
+              <PeopleIcon color="primary" /> 
+              {isMobile ? `Ciudadanos ${user?.zona || 'Zona'}` : `Ciudadanos de ${user?.zona || 'mi Zona'}`}
             </Typography>
             <Divider sx={{ mb: 3 }} />
             
-            <Grid container spacing={2}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
               {ciudadanosZona.map((ciudadano) => (
-                <Grid item xs={12} md={6} lg={4} key={ciudadano.id}>
-                  <Card>
-                    <CardContent>
+                <Grid item xs={12} sm={6} lg={4} key={ciudadano.id}>
+                  <Card elevation={2}>
+                    <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                       <Box display="flex" alignItems="center" mb={2}>
-                        <Avatar sx={{ bgcolor: ciudadano.verificado ? 'success.main' : 'warning.main', mr: 2 }}>
+                        <Avatar sx={{ 
+                          bgcolor: ciudadano.verificado ? 'success.main' : 'warning.main', 
+                          mr: 2,
+                          width: { xs: 35, md: 40 },
+                          height: { xs: 35, md: 40 },
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}>
                           {ciudadano.nombre.split(' ').map(n => n[0]).join('')}
                         </Avatar>
                         <Box flex={1}>
-                          <Typography variant="h6">
+                          <Typography 
+                            variant="h6"
+                            sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}
+                          >
                             {ciudadano.nombre}
                           </Typography>
                           <Chip 
                             label={ciudadano.verificado ? "Verificado" : "Pendiente"}
                             color={ciudadano.verificado ? "success" : "warning"}
                             size="small"
+                            sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
                           />
                         </Box>
                       </Box>
                       
-                      <Box mb={2}>
-                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                          <EmailIcon fontSize="small" /> {ciudadano.correo}
+                      <Stack spacing={0.5} mb={2}>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5,
+                            fontSize: { xs: '0.8rem', md: '0.875rem' }
+                          }}
+                        >
+                          <EmailIcon fontSize="small" /> 
+                          {isMobile && ciudadano.correo.length > 20 ? 
+                            `${ciudadano.correo.substring(0, 20)}...` : 
+                            ciudadano.correo
+                          }
                         </Typography>
-                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5,
+                            fontSize: { xs: '0.8rem', md: '0.875rem' }
+                          }}
+                        >
                           <PhoneIcon fontSize="small" /> {ciudadano.telefono}
                         </Typography>
-                        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                          <HomeIcon fontSize="small" /> {ciudadano.direccion}
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5,
+                            fontSize: { xs: '0.8rem', md: '0.875rem' }
+                          }}
+                        >
+                          <HomeIcon fontSize="small" /> 
+                          {isMobile && ciudadano.direccion.length > 25 ? 
+                            `${ciudadano.direccion.substring(0, 25)}...` : 
+                            ciudadano.direccion
+                          }
                         </Typography>
-                        <Typography variant="body2" color="textSecondary">
+                        <Typography 
+                          variant="body2" 
+                          color="textSecondary"
+                          sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                        >
                           Reportes: {ciudadano.reportesCreados} | Registro: {ciudadano.fechaRegistro}
                         </Typography>
-                      </Box>
+                      </Stack>
 
-                      <Box display="flex" gap={1}>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                         {!ciudadano.verificado && (
                           <Button
                             size="small"
@@ -820,6 +1208,8 @@ const DashboardLider = () => {
                             color="success"
                             startIcon={<VerifiedIcon />}
                             onClick={() => handleVerificarCiudadano(ciudadano.id)}
+                            fullWidth={isMobile}
+                            sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
                           >
                             Verificar
                           </Button>
@@ -829,10 +1219,12 @@ const DashboardLider = () => {
                           size="small"
                           variant="outlined"
                           startIcon={<PhoneIcon />}
+                          fullWidth={isMobile}
+                          sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
                         >
                           Contactar
                         </Button>
-                      </Box>
+                      </Stack>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -841,44 +1233,67 @@ const DashboardLider = () => {
           </Paper>
         )}
 
-        {/* Tab 2 - Coordinación (mantener como estaba) */}
+        {/* Tab 2 - Coordinación - RESPONSIVO */}
         {tabValue === 2 && (
-          <Grid container spacing={3}>
+          <Grid container spacing={{ xs: 2, md: 3 }}>
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 3 }}>
+              <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                 <Typography variant="h6" gutterBottom>
                   Coordinación con Técnicos
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Facilita el acceso de técnicos a tu zona para resolver reportes
+                  <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                    Facilita el acceso de técnicos a tu zona para resolver reportes
+                  </Typography>
                 </Alert>
                 
                 <List>
-                  <ListItem>
+                  <ListItem sx={{ px: 0 }}>
                     <ListItemIcon>
                       <EngineeringIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Técnico de Energía Eléctrica"
                       secondary="2 reportes pendientes en tu zona"
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.9rem', md: '1rem' }
+                      }}
+                      secondaryTypographyProps={{ 
+                        fontSize: { xs: '0.8rem', md: '0.875rem' }
+                      }}
                     />
-                    <Button size="small" variant="outlined">
-                      Coordinar Visita
+                    <Button 
+                      size="small" 
+                      variant="outlined"
+                      sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                    >
+                      {isMobile ? 'Coordinar' : 'Coordinar Visita'}
                     </Button>
                   </ListItem>
                   
-                  <ListItem>
+                  <ListItem sx={{ px: 0 }}>
                     <ListItemIcon>
                       <EngineeringIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Técnico de Infraestructura"
                       secondary="1 reporte urgente - bache en calle principal"
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.9rem', md: '1rem' }
+                      }}
+                      secondaryTypographyProps={{ 
+                        fontSize: { xs: '0.8rem', md: '0.875rem' }
+                      }}
                     />
-                    <Button size="small" variant="contained" color="warning">
-                      Coordinar Urgente
+                    <Button 
+                      size="small" 
+                      variant="contained" 
+                      color="warning"
+                      sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                    >
+                      {isMobile ? 'Urgente' : 'Coordinar Urgente'}
                     </Button>
                   </ListItem>
                 </List>
@@ -886,30 +1301,42 @@ const DashboardLider = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <Paper elevation={3} sx={{ p: 3 }}>
+              <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                 <Typography variant="h6" gutterBottom>
                   Actividades Comunitarias
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
                 <List>
-                  <ListItem>
+                  <ListItem sx={{ px: 0 }}>
                     <ListItemIcon>
                       <EventIcon color="success" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Reunión Mensual COCODE"
                       secondary="Próxima: 15 de Enero, 6:00 PM"
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.9rem', md: '1rem' }
+                      }}
+                      secondaryTypographyProps={{ 
+                        fontSize: { xs: '0.8rem', md: '0.875rem' }
+                      }}
                     />
                   </ListItem>
                   
-                  <ListItem>
+                  <ListItem sx={{ px: 0 }}>
                     <ListItemIcon>
                       <CampaignIcon color="warning" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Campaña de Limpieza"
                       secondary="Sábado 20 de Enero, 8:00 AM"
+                      primaryTypographyProps={{ 
+                        fontSize: { xs: '0.9rem', md: '1rem' }
+                      }}
+                      secondaryTypographyProps={{ 
+                        fontSize: { xs: '0.8rem', md: '0.875rem' }
+                      }}
                     />
                   </ListItem>
                 </List>
@@ -920,8 +1347,9 @@ const DashboardLider = () => {
                   color="primary"
                   startIcon={<AddIcon />}
                   sx={{ mt: 2 }}
+                  size={isMobile ? "medium" : "medium"}
                 >
-                  Planificar Nueva Actividad
+                  {isMobile ? 'Nueva Actividad' : 'Planificar Nueva Actividad'}
                 </Button>
               </Paper>
             </Grid>
@@ -933,23 +1361,65 @@ const DashboardLider = () => {
           <ReportesPendientesAprobacion />
         )}
 
-        {/* Footer Info */}
-        <Box mt={4} p={2} bgcolor="success.50" borderRadius={1} border="1px solid" borderColor="success.200">
-          <Typography variant="body2" color="textSecondary" textAlign="center">
+        {/* Footer Info - Responsivo */}
+        <Box 
+          mt={4} 
+          p={{ xs: 2, md: 3 }} 
+          bgcolor="success.50" 
+          borderRadius={1} 
+          border="1px solid" 
+          borderColor="success.200"
+          mx={{ xs: 0, md: 0 }}
+        >
+          <Typography 
+            variant="body2" 
+            color="textSecondary" 
+            textAlign="center"
+            sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+          >
             <strong>Permisos de Líder COCODE:</strong> Gestionar ciudadanos de {user?.zona || 'tu zona'} | 
             Ver y validar reportes comunitarios | Crear reportes en nombre de ciudadanos | 
             Coordinar con técnicos | Organizar actividades comunitarias |
             <strong> NO puedes:</strong> Ver reportes de otras zonas | Asignar técnicos | Cambiar configuraciones del sistema
           </Typography>
         </Box>
-      </Box>
+      </Container>
 
-      {/* MODALES PARA APROBAR/RECHAZAR */}
+      {/* FAB para crear reporte en móvil */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          onClick={() => setOpenNuevoReporte(true)}
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            zIndex: 1000
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      )}
+
+      {/* MODALES PARA APROBAR/RECHAZAR - RESPONSIVOS */}
       
       {/* Modal Aprobar */}
-      <Dialog open={modalAprobar} onClose={() => setModalAprobar(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={modalAprobar} 
+        onClose={() => setModalAprobar(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>
-          Aprobar Reporte
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Aprobar Reporte</Typography>
+            {isMobile && (
+              <IconButton onClick={() => setModalAprobar(false)}>
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
         </DialogTitle>
         <DialogContent>
           {reporteSeleccionado && (
@@ -965,7 +1435,7 @@ const DashboardLider = () => {
                 fullWidth
                 label="Comentario del Líder (opcional)"
                 multiline
-                rows={3}
+                rows={isMobile ? 4 : 3}
                 value={comentarioLider}
                 onChange={(e) => setComentarioLider(e.target.value)}
                 placeholder="Agregar comentarios sobre la aprobación..."
@@ -973,24 +1443,30 @@ const DashboardLider = () => {
               />
               
               <Alert severity="info" sx={{ mt: 2 }}>
-                Al aprobar, el reporte será enviado al administrador para asignación a técnico.
+                <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                  Al aprobar, el reporte será enviado al administrador para asignación a técnico.
+                </Typography>
               </Alert>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => setModalAprobar(false)}
-            disabled={procesando}
-          >
-            Cancelar
-          </Button>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button 
+              onClick={() => setModalAprobar(false)}
+              disabled={procesando}
+            >
+              Cancelar
+            </Button>
+          )}
           <Button 
             variant="contained" 
             color="success"
             onClick={ejecutarAprobacion}
             disabled={procesando}
             startIcon={procesando ? <CircularProgress size={16} /> : <CheckCircle />}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
           >
             {procesando ? 'Aprobando...' : 'Aprobar Reporte'}
           </Button>
@@ -998,9 +1474,22 @@ const DashboardLider = () => {
       </Dialog>
 
       {/* Modal Rechazar */}
-      <Dialog open={modalRechazar} onClose={() => setModalRechazar(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={modalRechazar} 
+        onClose={() => setModalRechazar(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>
-          Rechazar Reporte
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Rechazar Reporte</Typography>
+            {isMobile && (
+              <IconButton onClick={() => setModalRechazar(false)}>
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
         </DialogTitle>
         <DialogContent>
           {reporteSeleccionado && (
@@ -1021,7 +1510,9 @@ const DashboardLider = () => {
                 >
                   {motivosRechazo.map((motivo) => (
                     <MenuItem key={motivo} value={motivo}>
-                      {motivo}
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                        {motivo}
+                      </Typography>
                     </MenuItem>
                   ))}
                 </Select>
@@ -1031,75 +1522,107 @@ const DashboardLider = () => {
                 fullWidth
                 label="Comentario adicional (opcional)"
                 multiline
-                rows={3}
+                rows={isMobile ? 4 : 3}
                 value={comentarioLider}
                 onChange={(e) => setComentarioLider(e.target.value)}
                 placeholder="Explicar el motivo del rechazo..."
               />
               
               <Alert severity="warning" sx={{ mt: 2 }}>
-                Al rechazar, el ciudadano será notificado del motivo.
+                <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                  Al rechazar, el ciudadano será notificado del motivo.
+                </Typography>
               </Alert>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => setModalRechazar(false)}
-            disabled={procesando}
-          >
-            Cancelar
-          </Button>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button 
+              onClick={() => setModalRechazar(false)}
+              disabled={procesando}
+            >
+              Cancelar
+            </Button>
+          )}
           <Button 
             variant="contained" 
             color="error"
             onClick={ejecutarRechazo}
             disabled={procesando || !motivoRechazo}
             startIcon={procesando ? <CircularProgress size={16} /> : <Cancel />}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
           >
             {procesando ? 'Rechazando...' : 'Rechazar Reporte'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog para nuevo reporte comunitario */}
-      <Dialog open={openNuevoReporte} onClose={() => setOpenNuevoReporte(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Crear Reporte Comunitario</DialogTitle>
+      {/* Dialog para nuevo reporte comunitario - Responsivo */}
+      <Dialog 
+        open={openNuevoReporte} 
+        onClose={() => setOpenNuevoReporte(false)} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Crear Reporte Comunitario</Typography>
+            {isMobile && (
+              <IconButton onClick={() => setOpenNuevoReporte(false)}>
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2} mt={1}>
+          <Stack spacing={{ xs: 2, md: 3 }} sx={{ mt: 1 }}>
             <TextField
               fullWidth
               label="Título del Problema"
               variant="outlined"
               placeholder="Ej: Falta de alumbrado en parque central"
+              size={isMobile ? "medium" : "medium"}
             />
             <TextField
               fullWidth
               multiline
-              rows={3}
+              rows={isMobile ? 3 : 4}
               label="Descripción Detallada"
               variant="outlined"
               placeholder="Describe el problema detalladamente..."
+              size={isMobile ? "medium" : "medium"}
             />
             <TextField
               fullWidth
               label="Ubicación/Dirección"
               variant="outlined"
               placeholder="Dirección exacta del problema"
+              size={isMobile ? "medium" : "medium"}
             />
             <TextField
               fullWidth
               label="Ciudadano Reportante (opcional)"
               variant="outlined"
               placeholder="Nombre del ciudadano que reportó"
+              size={isMobile ? "medium" : "medium"}
             />
-          </Box>
+          </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenNuevoReporte(false)}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={() => setOpenNuevoReporte(false)}>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button onClick={() => setOpenNuevoReporte(false)}>
+              Cancelar
+            </Button>
+          )}
+          <Button 
+            variant="contained" 
+            onClick={() => setOpenNuevoReporte(false)}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
+          >
             Crear Reporte
           </Button>
         </DialogActions>

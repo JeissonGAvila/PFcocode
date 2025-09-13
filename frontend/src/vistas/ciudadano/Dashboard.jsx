@@ -1,4 +1,4 @@
-// frontend/src/vistas/ciudadano/Dashboard.jsx - FINAL CON GRID V2 CORREGIDO
+// frontend/src/vistas/ciudadano/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -31,7 +31,15 @@ import {
   Tab,
   IconButton,
   Tooltip,
-  Badge
+  Badge,
+  Stack,
+  Container,
+  Collapse,
+  useTheme,
+  useMediaQuery,
+  Drawer,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -48,7 +56,11 @@ import {
   Check as CheckIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
-  PhotoCamera as PhotoCameraIcon
+  PhotoCamera as PhotoCameraIcon,
+  Menu as MenuIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
@@ -58,6 +70,10 @@ import SubidaFotos from '../../components/ciudadano/SubidaFotos.jsx';
 
 const DashboardCiudadano = () => {
   const { user, isAuthenticated, isCiudadano } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
+  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
   
   // Estados principales
   const [tabValue, setTabValue] = useState(0);
@@ -97,6 +113,14 @@ const DashboardCiudadano = () => {
     metodo: 'gps',
     precision: null,
     obteniendo: false
+  });
+
+  // Estados para UI responsiva
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    ubicacion: true,
+    fotos: true,
+    consejos: false
   });
 
   const [comentario, setComentario] = useState('');
@@ -239,6 +263,14 @@ const DashboardCiudadano = () => {
     setFotosReporte(nuevasFotos);
   };
 
+  // Toggle secciones expandibles (móvil)
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   // FUNCIÓN CORREGIDA PARA MANEJAR FOTOS
   const handleCrearReporte = async () => {
     try {
@@ -348,126 +380,267 @@ const DashboardCiudadano = () => {
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+    if (isMobile) {
+      setMobileDrawerOpen(false);
+    }
   };
 
   // Verificaciones de seguridad
   if (!isAuthenticated) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+      <Container maxWidth="sm" sx={{ mt: 4 }}>
         <Alert severity="error">
           No estás autenticado. Redirigiendo al login...
         </Alert>
-      </Box>
+      </Container>
     );
   }
 
   if (!isCiudadano()) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+      <Container maxWidth="sm" sx={{ mt: 4 }}>
         <Alert severity="error">
           No tienes permisos de ciudadano. Contacta al administrador.
         </Alert>
-      </Box>
+      </Container>
     );
   }
 
   if (loading && misReportes.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-        <CircularProgress />
-        <Typography variant="body1" sx={{ ml: 2 }}>
-          Cargando tus reportes...
-        </Typography>
-      </Box>
+      <Container maxWidth="sm" sx={{ mt: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+          <CircularProgress />
+          <Typography variant="body1" sx={{ ml: 2 }}>
+            Cargando tus reportes...
+          </Typography>
+        </Box>
+      </Container>
     );
   }
 
-  return (
-    <Box>
-      {/* Header del Panel Ciudadano */}
-      <Box 
-        bgcolor="info.main" 
-        color="white" 
-        p={3}
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-      >
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PersonIcon sx={{ fontSize: 40 }} /> Panel Ciudadano
-          </Typography>
-          <Typography variant="h6">
-            {user?.nombre || 'Ciudadano'}
-          </Typography>
-          <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            Zona: <strong>{user?.zona || 'Zona 1'}</strong> | 
-            Participación Activa | {user?.correo}
-          </Typography>
+  // Header responsivo
+  const HeaderResponsivo = () => (
+    <Box 
+      bgcolor="info.main" 
+      color="white"
+    >
+      {/* Móvil Header */}
+      {isMobile && (
+        <AppBar position="static" color="transparent" elevation={0}>
+          <Toolbar>
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={() => setMobileDrawerOpen(true)}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" noWrap>
+                Panel Ciudadano
+              </Typography>
+            </Box>
+            <Badge badgeContent={estadisticas.nuevos || 0} color="warning">
+              <NotificationsIcon />
+            </Badge>
+          </Toolbar>
+        </AppBar>
+      )}
+
+      {/* Desktop Header */}
+      {!isMobile && (
+        <Box p={{ xs: 2, sm: 3 }}>
+          <Grid container alignItems="center" spacing={2}>
+            <Grid item xs={12} md={8}>
+              <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                <PersonIcon sx={{ fontSize: { xs: 32, md: 40 } }} />
+                <Typography variant={{ xs: "h5", md: "h4" }} component="h1">
+                  Panel Ciudadano
+                </Typography>
+              </Stack>
+              
+              <Typography variant={{ xs: "subtitle1", md: "h6" }} gutterBottom>
+                {user?.nombre || 'Ciudadano'}
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, opacity: 0.9 }}>
+                <Chip 
+                  label={`Zona: ${user?.zona || 'Zona 1'}`}
+                  size="small"
+                  sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                />
+                <Chip 
+                  label="Participación Activa"
+                  size="small"
+                  sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                />
+                {!isMobile && (
+                  <Chip 
+                    label={user?.correo}
+                    size="small"
+                    sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+                  />
+                )}
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                <Badge badgeContent={estadisticas.nuevos || 0} color="warning">
+                  <NotificationsIcon />
+                </Badge>
+                <LogoutButton variant="text" color="inherit" />
+              </Stack>
+            </Grid>
+          </Grid>
+        </Box>
+      )}
+    </Box>
+  );
+
+  // Navigation Drawer para móvil
+  const NavigationDrawer = () => (
+    <Drawer
+      anchor="left"
+      open={mobileDrawerOpen}
+      onClose={() => setMobileDrawerOpen(false)}
+      PaperProps={{
+        sx: { width: 280 }
+      }}
+    >
+      <Box sx={{ p: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Typography variant="h6">Menú</Typography>
+          <IconButton onClick={() => setMobileDrawerOpen(false)}>
+            <CloseIcon />
+          </IconButton>
         </Box>
         
-        <Box display="flex" alignItems="center" gap={2}>
-          <Badge badgeContent={estadisticas.nuevos || 0} color="warning">
-            <NotificationsIcon />
-          </Badge>
-          <LogoutButton variant="text" />
+        <Stack spacing={1}>
+          <Button
+            fullWidth
+            variant={tabValue === 0 ? "contained" : "text"}
+            startIcon={<AddIcon />}
+            onClick={() => handleTabChange(null, 0)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Crear Reporte
+          </Button>
+          
+          <Button
+            fullWidth
+            variant={tabValue === 1 ? "contained" : "text"}
+            startIcon={<ReporteIcon />}
+            onClick={() => handleTabChange(null, 1)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Mis Reportes ({misReportes.length})
+          </Button>
+          
+          <Button
+            fullWidth
+            variant={tabValue === 2 ? "contained" : "text"}
+            startIcon={<TimelineIcon />}
+            onClick={() => handleTabChange(null, 2)}
+            size="large"
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Mi Actividad
+          </Button>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+        
+        {/* Info del usuario en móvil */}
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            {user?.nombre}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {user?.correo}
+          </Typography>
+          <Chip 
+            label={`Zona: ${user?.zona || 'Zona 1'}`}
+            size="small"
+            sx={{ mt: 1 }}
+          />
         </Box>
       </Box>
+    </Drawer>
+  );
+
+  return (
+    <Box>
+      {/* Header Responsivo */}
+      <HeaderResponsivo />
+      
+      {/* Navigation Drawer para móvil */}
+      <NavigationDrawer />
 
       {/* Contenido Principal */}
-      <Box p={3}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
         {/* Bienvenida personalizada */}
         <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes con ubicación GPS/mapa, subir fotos del problema, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
+          <Typography variant="body2">
+            <strong>Hola {user?.nombre?.split(' ')[0]}!</strong> Aquí puedes crear reportes con ubicación GPS/mapa, subir fotos del problema, hacer seguimiento a tus solicitudes y participar activamente en tu comunidad.
+          </Typography>
         </Alert>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-            <Button onClick={cargarDatos} sx={{ ml: 2 }}>
+            <Typography variant="body2">{error}</Typography>
+            <Button onClick={cargarDatos} sx={{ ml: 2 }} size="small">
               Reintentar
             </Button>
           </Alert>
         )}
 
-        {/* Sistema de Tabs */}
-        <Paper sx={{ borderRadius: 2, mb: 3 }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange} 
-            variant="fullWidth"
-            sx={{
-              '& .MuiTab-root': {
-                minHeight: 64,
-                fontSize: '0.95rem',
-                fontWeight: 500
-              }
-            }}
-          >
-            <Tab 
-              label="Crear Reporte" 
-              icon={<AddIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label="Mis Reportes" 
-              icon={<ReporteIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label="Mi Actividad" 
-              icon={<TimelineIcon />}
-              iconPosition="start"
-            />
-          </Tabs>
-        </Paper>
+        {/* Sistema de Tabs - Solo desktop */}
+        {!isMobile && (
+          <Paper sx={{ borderRadius: 2, mb: 3 }}>
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange} 
+              variant={isTablet ? "scrollable" : "fullWidth"}
+              scrollButtons="auto"
+              sx={{
+                '& .MuiTab-root': {
+                  minHeight: { xs: 56, md: 64 },
+                  fontSize: { xs: '0.85rem', md: '0.95rem' },
+                  fontWeight: 500,
+                  px: { xs: 1, md: 3 }
+                }
+              }}
+            >
+              <Tab 
+                label={isMobile ? "Crear" : "Crear Reporte"}
+                icon={<AddIcon />}
+                iconPosition="start"
+              />
+              <Tab 
+                label={isMobile ? `Reportes (${misReportes.length})` : "Mis Reportes"}
+                icon={<ReporteIcon />}
+                iconPosition="start"
+              />
+              <Tab 
+                label={isMobile ? "Actividad" : "Mi Actividad"}
+                icon={<TimelineIcon />}
+                iconPosition="start"
+              />
+            </Tabs>
+          </Paper>
+        )}
 
-        {/* TAB 0: Crear Reporte - GRID V2 CORREGIDO */}
+        {/* TAB 0: Crear Reporte - COMPLETAMENTE RESPONSIVO */}
         {tabValue === 0 && (
           <Box>
-            <Grid container spacing={3}>
-              <Grid xs={12} lg={8}>
-                <Paper elevation={3} sx={{ p: 3 }}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
+              {/* Formulario Principal */}
+              <Grid item xs={12} lg={8}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom>
                     Crear Nuevo Reporte
                   </Typography>
@@ -475,8 +648,8 @@ const DashboardCiudadano = () => {
                     Describe el problema de tu comunidad. Tu reporte será revisado por el líder COCODE antes de ser asignado a un técnico.
                   </Typography>
 
-                  <Grid container spacing={2}>
-                    <Grid xs={12}>
+                  <Grid container spacing={{ xs: 2, md: 3 }}>
+                    <Grid item xs={12}>
                       <TextField
                         fullWidth
                         label="Título del Problema *"
@@ -485,11 +658,12 @@ const DashboardCiudadano = () => {
                         onChange={handleInputChange}
                         placeholder="Ej: Falta de agua potable en mi cuadra"
                         required
+                        size={isMobile ? "medium" : "medium"}
                       />
                     </Grid>
 
-                    <Grid xs={12} sm={6}>
-                      <FormControl fullWidth required>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth required size={isMobile ? "medium" : "medium"}>
                         <InputLabel>Tipo de Problema</InputLabel>
                         <Select
                           name="id_tipo_problema"
@@ -499,15 +673,22 @@ const DashboardCiudadano = () => {
                         >
                           {tiposProblema.map((tipo) => (
                             <MenuItem key={tipo.id} value={tipo.id}>
-                              {tipo.nombre} - {tipo.departamento_responsable}
+                              <Box>
+                                <Typography variant="body2">
+                                  {tipo.nombre}
+                                </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                  {tipo.departamento_responsable}
+                                </Typography>
+                              </Box>
                             </MenuItem>
                           ))}
                         </Select>
                       </FormControl>
                     </Grid>
 
-                    <Grid xs={12} sm={6}>
-                      <FormControl fullWidth>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth size={isMobile ? "medium" : "medium"}>
                         <InputLabel>Prioridad</InputLabel>
                         <Select
                           name="prioridad"
@@ -524,129 +705,196 @@ const DashboardCiudadano = () => {
                       </FormControl>
                     </Grid>
 
-                    <Grid xs={12}>
+                    <Grid item xs={12}>
                       <TextField
                         fullWidth
                         multiline
-                        rows={4}
+                        rows={isMobile ? 3 : 4}
                         label="Descripción Detallada *"
                         name="descripcion"
                         value={formData.descripcion}
                         onChange={handleInputChange}
                         placeholder="Describe detalladamente el problema, cuándo empezó, a quiénes afecta, etc."
                         required
+                        size={isMobile ? "medium" : "medium"}
                       />
                     </Grid>
 
-                    {/* SECCIÓN DE UBICACIÓN CON GPS Y MAPA INTEGRADO */}
-                    <Grid xs={12}>
-                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-                        Ubicación del Problema
-                      </Typography>
-                      <Divider sx={{ mb: 2 }} />
-                      
-                      {/* Tabs para alternar entre métodos */}
-                      <Box sx={{ mb: 2 }}>
-                        <Tabs 
-                          value={ubicacion.metodo === 'gps' ? 0 : ubicacion.metodo === 'mapa' ? 1 : 2} 
-                          onChange={(e, newValue) => {
-                            const metodos = ['gps', 'mapa', 'manual'];
-                            setUbicacion(prev => ({ ...prev, metodo: metodos[newValue] }));
-                          }}
-                          variant="scrollable"
-                          scrollButtons="auto"
+                    {/* SECCIÓN DE UBICACIÓN - RESPONSIVA */}
+                    <Grid item xs={12}>
+                      <Paper 
+                        variant="outlined" 
+                        sx={{ 
+                          p: { xs: 2, md: 3 }, 
+                          mt: 2,
+                          border: '2px solid',
+                          borderColor: 'primary.light'
+                        }}
+                      >
+                        <Box 
+                          display="flex" 
+                          justifyContent="space-between" 
+                          alignItems="center"
+                          mb={2}
                         >
-                          <Tab 
-                            label="GPS Automático" 
-                            icon={<GPSIcon />} 
-                            iconPosition="start"
-                          />
-                          <Tab 
-                            label="Seleccionar en Mapa" 
-                            icon={<MapIcon />} 
-                            iconPosition="start"
-                          />
-                          <Tab 
-                            label="Solo Dirección" 
-                            icon={<LocationIcon />} 
-                            iconPosition="start"
-                          />
-                        </Tabs>
-                      </Box>
-
-                      {/* Mostrar GPS/Mapa según el método seleccionado */}
-                      {(ubicacion.metodo === 'gps' || ubicacion.metodo === 'mapa') && (
-                        <Box sx={{ mb: 3 }}>
-                          <MapaUbicacion
-                            ubicacion={ubicacion}
-                            onUbicacionChange={(nuevaUbicacion) => {
-                              setUbicacion(prev => ({
-                                ...prev,
-                                ...nuevaUbicacion,
-                                obteniendo: false
-                              }));
-                            }}
-                            onUbicacionGPS={obtenerUbicacionGPS}
-                            loading={ubicacion.obteniendo}
-                            height={400}
-                            allowManualSelection={ubicacion.metodo === 'mapa'}
-                          />
-                        </Box>
-                      )}
-
-                      {/* Información de ubicación obtenida */}
-                      {ubicacion.lat && ubicacion.lng && (
-                        <Alert severity="success" sx={{ mb: 2 }}>
-                          <Typography variant="body2">
-                            <strong>Ubicación {ubicacion.metodo === 'gps' ? 'GPS' : 'seleccionada'}:</strong> 
-                            {ubicacion.lat.toFixed(6)}, {ubicacion.lng.toFixed(6)}
-                            {ubicacion.precision && ` (Precisión: ${Math.round(ubicacion.precision)}m)`}
+                          <Typography variant="subtitle1" component="h3">
+                            Ubicación del Problema
                           </Typography>
-                          {ubicacion.direccion_aproximada && (
-                            <Typography variant="body2">
-                              <strong>Dirección aproximada:</strong> {ubicacion.direccion_aproximada}
-                            </Typography>
+                          
+                          {isMobile && (
+                            <IconButton 
+                              onClick={() => toggleSection('ubicacion')}
+                              size="small"
+                            >
+                              {expandedSections.ubicacion ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
                           )}
-                        </Alert>
-                      )}
+                        </Box>
+                        
+                        <Collapse in={!isMobile || expandedSections.ubicacion}>
+                          {/* Tabs para alternar entre métodos - Responsivos */}
+                          <Box sx={{ mb: 2 }}>
+                            <Tabs 
+                              value={ubicacion.metodo === 'gps' ? 0 : ubicacion.metodo === 'mapa' ? 1 : 2} 
+                              onChange={(e, newValue) => {
+                                const metodos = ['gps', 'mapa', 'manual'];
+                                setUbicacion(prev => ({ ...prev, metodo: metodos[newValue] }));
+                              }}
+                              variant="scrollable"
+                              scrollButtons="auto"
+                              sx={{
+                                '& .MuiTab-root': {
+                                  minHeight: { xs: 48, md: 56 },
+                                  fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                  px: { xs: 1, md: 2 }
+                                }
+                              }}
+                            >
+                              <Tab 
+                                label={isMobile ? "GPS" : "GPS Automático"}
+                                icon={<GPSIcon />} 
+                                iconPosition={isMobile ? "top" : "start"}
+                              />
+                              <Tab 
+                                label={isMobile ? "Mapa" : "Seleccionar en Mapa"}
+                                icon={<MapIcon />} 
+                                iconPosition={isMobile ? "top" : "start"}
+                              />
+                              <Tab 
+                                label={isMobile ? "Manual" : "Solo Dirección"}
+                                icon={<LocationIcon />} 
+                                iconPosition={isMobile ? "top" : "start"}
+                              />
+                            </Tabs>
+                          </Box>
 
-                      {/* Campo de dirección (siempre visible) */}
-                      <TextField
-                        fullWidth
-                        label="Dirección Exacta *"
-                        name="direccion"
-                        value={formData.direccion}
-                        onChange={handleInputChange}
-                        placeholder="Ej: 3a Calle 4-15, Zona 1, Colonia Centro"
-                        required
-                        helperText="Proporciona la dirección más específica posible. La ubicación GPS/mapa es complementaria."
-                        sx={{ mb: 2 }}
-                      />
+                          {/* Mostrar GPS/Mapa según el método seleccionado */}
+                          {(ubicacion.metodo === 'gps' || ubicacion.metodo === 'mapa') && (
+                            <Box sx={{ mb: 3 }}>
+                              <MapaUbicacion
+                                ubicacion={ubicacion}
+                                onUbicacionChange={(nuevaUbicacion) => {
+                                  setUbicacion(prev => ({
+                                    ...prev,
+                                    ...nuevaUbicacion,
+                                    obteniendo: false
+                                  }));
+                                }}
+                                onUbicacionGPS={obtenerUbicacionGPS}
+                                loading={ubicacion.obteniendo}
+                                height={isMobile ? 300 : 400}
+                                allowManualSelection={ubicacion.metodo === 'mapa'}
+                              />
+                            </Box>
+                          )}
+
+                          {/* Información de ubicación obtenida */}
+                          {ubicacion.lat && ubicacion.lng && (
+                            <Alert severity="success" sx={{ mb: 2 }}>
+                              <Typography variant="body2">
+                                <strong>Ubicación {ubicacion.metodo === 'gps' ? 'GPS' : 'seleccionada'}:</strong> 
+                                {ubicacion.lat.toFixed(6)}, {ubicacion.lng.toFixed(6)}
+                                {ubicacion.precision && ` (Precisión: ${Math.round(ubicacion.precision)}m)`}
+                              </Typography>
+                              {ubicacion.direccion_aproximada && (
+                                <Typography variant="body2">
+                                  <strong>Dirección aproximada:</strong> {ubicacion.direccion_aproximada}
+                                </Typography>
+                              )}
+                            </Alert>
+                          )}
+
+                          {/* Campo de dirección (siempre visible) */}
+                          <TextField
+                            fullWidth
+                            label="Dirección Exacta *"
+                            name="direccion"
+                            value={formData.direccion}
+                            onChange={handleInputChange}
+                            placeholder="Ej: 3a Calle 4-15, Zona 1, Colonia Centro"
+                            required
+                            helperText="Proporciona la dirección más específica posible. La ubicación GPS/mapa es complementaria."
+                            sx={{ mb: 2 }}
+                            size={isMobile ? "medium" : "medium"}
+                          />
+                        </Collapse>
+                      </Paper>
                     </Grid>
 
-                    {/* SECCIÓN DE SUBIDA DE FOTOS */}
-                    <Grid xs={12}>
-                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-                        Evidencia Fotográfica
-                      </Typography>
-                      <Divider sx={{ mb: 2 }} />
-                      
-                      <SubidaFotos
-                        fotos={fotosReporte}
-                        onFotosChange={handleFotosChange}
-                        maxFotos={3}
-                        disabled={loading}
-                      />
+                    {/* SECCIÓN DE SUBIDA DE FOTOS - RESPONSIVA */}
+                    <Grid item xs={12}>
+                      <Paper 
+                        variant="outlined" 
+                        sx={{ 
+                          p: { xs: 2, md: 3 }, 
+                          border: '2px solid',
+                          borderColor: 'secondary.light'
+                        }}
+                      >
+                        <Box 
+                          display="flex" 
+                          justifyContent="space-between" 
+                          alignItems="center"
+                          mb={2}
+                        >
+                          <Typography variant="subtitle1" component="h3">
+                            Evidencia Fotográfica
+                          </Typography>
+                          
+                          {isMobile && (
+                            <IconButton 
+                              onClick={() => toggleSection('fotos')}
+                              size="small"
+                            >
+                              {expandedSections.fotos ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
+                          )}
+                        </Box>
+                        
+                        <Collapse in={!isMobile || expandedSections.fotos}>
+                          <SubidaFotos
+                            fotos={fotosReporte}
+                            onFotosChange={handleFotosChange}
+                            maxFotos={3}
+                            disabled={loading}
+                          />
+                        </Collapse>
+                      </Paper>
                     </Grid>
 
-                    <Grid xs={12}>
+                    {/* Botón Crear Reporte - Responsivo */}
+                    <Grid item xs={12}>
                       <Button
                         fullWidth
                         variant="contained"
-                        size="large"
+                        size={isMobile ? "large" : "large"}
                         onClick={handleCrearReporte}
                         disabled={loading || !formData.titulo || !formData.descripcion || !formData.direccion || !formData.id_tipo_problema}
-                        sx={{ mt: 3 }}
+                        sx={{ 
+                          mt: 3, 
+                          py: { xs: 1.5, md: 2 },
+                          fontSize: { xs: '1rem', md: '1.1rem' }
+                        }}
                         startIcon={loading ? <CircularProgress size={20} /> : <AddIcon />}
                       >
                         {loading ? 'Creando Reporte...' : `Crear Reporte${fotosReporte.length > 0 ? ` con ${fotosReporte.length} foto(s)` : ''}`}
@@ -656,105 +904,161 @@ const DashboardCiudadano = () => {
                 </Paper>
               </Grid>
 
-              <Grid xs={12} lg={4}>
-                <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Consejos Importantes
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemIcon>
-                        <PhotoCameraIcon color="primary" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Subir fotos del problema"
-                        secondary="Las imágenes optimizadas ayudan al técnico a entender mejor el problema"
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon>
-                        <MapIcon color="primary" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Usa GPS o Mapa para precisión"
-                        secondary="La ubicación visual ayuda al técnico a encontrar el problema más rápido"
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon>
-                        <LocationIcon color="warning" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Sé específico con la dirección"
-                        secondary="Incluye puntos de referencia y detalles de ubicación"
-                      />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon>
-                        <InfoIcon color="info" />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Describe claramente"
-                        secondary="Mientras más detalles, mejor será la atención"
-                      />
-                    </ListItem>
-                  </List>
-                </Paper>
-
-                <Paper elevation={3} sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Estadísticas Personales
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid xs={6}>
-                      <Card>
-                        <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                          <Typography variant="h6" color="primary">
-                            {estadisticas.total_creados || 0}
-                          </Typography>
-                          <Typography variant="caption">
-                            Total Creados
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid xs={6}>
-                      <Card>
-                        <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                          <Typography variant="h6" color="success.main">
-                            {estadisticas.resueltos || 0}
-                          </Typography>
-                          <Typography variant="caption">
-                            Resueltos
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-
-                  {/* Información sobre fotos */}
-                  {fotosReporte.length > 0 && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                      <Typography variant="body2">
-                        <strong>Fotos listas:</strong> {fotosReporte.length}/3
+              {/* Sidebar con consejos y estadísticas */}
+              <Grid item xs={12} lg={4}>
+                <Stack spacing={{ xs: 2, md: 3 }}>
+                  {/* Consejos Importantes - Colapsible en móvil */}
+                  <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                    <Box 
+                      display="flex" 
+                      justifyContent="space-between" 
+                      alignItems="center"
+                      mb={2}
+                    >
+                      <Typography variant="h6">
+                        Consejos Importantes
                       </Typography>
-                      <Typography variant="caption">
-                        Total optimizado: {fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) > 1024 
-                          ? `${(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024 / 1024).toFixed(1)} MB`
-                          : `${Math.round(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024)} KB`}
-                      </Typography>
-                    </Alert>
-                  )}
-                </Paper>
+                      
+                      {isMobile && (
+                        <IconButton 
+                          onClick={() => toggleSection('consejos')}
+                          size="small"
+                        >
+                          {expandedSections.consejos ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        </IconButton>
+                      )}
+                    </Box>
+                    
+                    <Collapse in={!isMobile || expandedSections.consejos}>
+                      <List dense>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemIcon>
+                            <PhotoCameraIcon color="primary" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary="Subir fotos del problema"
+                            secondary="Las imágenes optimizadas ayudan al técnico a entender mejor el problema"
+                            primaryTypographyProps={{ 
+                              fontSize: { xs: '0.9rem', md: '1rem' }
+                            }}
+                            secondaryTypographyProps={{ 
+                              fontSize: { xs: '0.8rem', md: '0.875rem' }
+                            }}
+                          />
+                        </ListItem>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemIcon>
+                            <MapIcon color="primary" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary="Usa GPS o Mapa para precisión"
+                            secondary="La ubicación visual ayuda al técnico a encontrar el problema más rápido"
+                            primaryTypographyProps={{ 
+                              fontSize: { xs: '0.9rem', md: '1rem' }
+                            }}
+                            secondaryTypographyProps={{ 
+                              fontSize: { xs: '0.8rem', md: '0.875rem' }
+                            }}
+                          />
+                        </ListItem>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemIcon>
+                            <LocationIcon color="warning" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary="Sé específico con la dirección"
+                            secondary="Incluye puntos de referencia y detalles de ubicación"
+                            primaryTypographyProps={{ 
+                              fontSize: { xs: '0.9rem', md: '1rem' }
+                            }}
+                            secondaryTypographyProps={{ 
+                              fontSize: { xs: '0.8rem', md: '0.875rem' }
+                            }}
+                          />
+                        </ListItem>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemIcon>
+                            <InfoIcon color="info" />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary="Describe claramente"
+                            secondary="Mientras más detalles, mejor será la atención"
+                            primaryTypographyProps={{ 
+                              fontSize: { xs: '0.9rem', md: '1rem' }
+                            }}
+                            secondaryTypographyProps={{ 
+                              fontSize: { xs: '0.8rem', md: '0.875rem' }
+                            }}
+                          />
+                        </ListItem>
+                      </List>
+                    </Collapse>
+                  </Paper>
+
+                  {/* Estadísticas Personales */}
+                  <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                    <Typography variant="h6" gutterBottom>
+                      Estadísticas Personales
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Card>
+                          <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                            <Typography variant="h6" color="primary">
+                              {estadisticas.total_creados || 0}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                              Total Creados
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Card>
+                          <CardContent sx={{ textAlign: 'center', py: { xs: 1.5, md: 2 } }}>
+                            <Typography variant="h6" color="success.main">
+                              {estadisticas.resueltos || 0}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                              Resueltos
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    {/* Información sobre fotos */}
+                    {fotosReporte.length > 0 && (
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                          <strong>Fotos listas:</strong> {fotosReporte.length}/3
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                          Total optimizado: {fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) > 1024 
+                            ? `${(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024 / 1024).toFixed(1)} MB`
+                            : `${Math.round(fotosReporte.reduce((acc, foto) => acc + foto.tamaño, 0) / 1024)} KB`}
+                        </Typography>
+                      </Alert>
+                    )}
+                  </Paper>
+                </Stack>
               </Grid>
             </Grid>
           </Box>
         )}
 
-        {/* TAB 1: Mis Reportes - GRID V2 CORREGIDO */}
+        {/* TAB 1: Mis Reportes - COMPLETAMENTE RESPONSIVO */}
         {tabValue === 1 && (
           <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            {/* Header con botón actualizar */}
+            <Box 
+              display="flex" 
+              justifyContent="space-between" 
+              alignItems="center" 
+              mb={3}
+              flexDirection={{ xs: 'column', sm: 'row' }}
+              gap={{ xs: 2, sm: 0 }}
+            >
               <Typography variant="h6">
                 Mis Reportes ({misReportes.length} total)
               </Typography>
@@ -763,57 +1067,101 @@ const DashboardCiudadano = () => {
                 startIcon={<RefreshIcon />}
                 onClick={cargarDatos}
                 disabled={loading}
+                size={isMobile ? "medium" : "medium"}
+                fullWidth={isMobile}
               >
                 Actualizar
               </Button>
             </Box>
 
             {misReportes.length > 0 ? (
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, md: 3 }}>
                 {misReportes.map((reporte) => {
                   const estadoInfo = getEstadoInfo(reporte.estado);
                   return (
-                    <Grid xs={12} md={6} key={reporte.id}>
-                      <Card elevation={3}>
-                        <CardContent>
+                    <Grid item xs={12} md={6} lg={4} key={reporte.id}>
+                      <Card 
+                        elevation={3}
+                        sx={{ 
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column'
+                        }}
+                      >
+                        <CardContent sx={{ flexGrow: 1, p: { xs: 2, md: 3 } }}>
+                          {/* Header del reporte */}
                           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                            <Typography variant="h6" gutterBottom>
-                              {reporte.titulo}
+                            <Typography 
+                              variant="h6" 
+                              gutterBottom
+                              sx={{ 
+                                fontSize: { xs: '1rem', md: '1.25rem' },
+                                lineHeight: 1.2,
+                                pr: 1
+                              }}
+                            >
+                              {reporte.titulo.length > 50 && isMobile ? 
+                                `${reporte.titulo.substring(0, 50)}...` : 
+                                reporte.titulo
+                              }
                             </Typography>
                             <Chip 
                               label={reporte.estado}
                               color={estadoInfo.color}
                               size="small"
+                              sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
                             />
                           </Box>
 
+                          {/* Info del reporte */}
                           <Typography variant="body2" color="textSecondary" gutterBottom>
                             <strong>#{reporte.numero_reporte}</strong> | {reporte.tipo_problema}
                           </Typography>
 
-                          <Typography variant="body2" sx={{ mb: 2 }}>
-                            {reporte.descripcion.length > 100 ? 
-                              `${reporte.descripcion.substring(0, 100)}...` : 
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              mb: 2,
+                              fontSize: { xs: '0.85rem', md: '0.875rem' }
+                            }}
+                          >
+                            {reporte.descripcion.length > (isMobile ? 80 : 100) ? 
+                              `${reporte.descripcion.substring(0, isMobile ? 80 : 100)}...` : 
                               reporte.descripcion
                             }
                           </Typography>
 
-                          {/* Información de ubicación */}
-                          <Box display="flex" alignItems="center" mb={1}>
-                            <LocationIcon fontSize="small" sx={{ mr: 1, color: 'grey.600' }} />
-                            <Typography variant="body2" color="textSecondary">
-                              {reporte.direccion}
+                          {/* Información de ubicación - Responsiva */}
+                          <Box display="flex" alignItems="center" mb={1} flexWrap="wrap" gap={0.5}>
+                            <LocationIcon fontSize="small" sx={{ color: 'grey.600' }} />
+                            <Typography 
+                              variant="body2" 
+                              color="textSecondary"
+                              sx={{ 
+                                fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                flex: 1,
+                                minWidth: 0
+                              }}
+                              noWrap={!isMobile}
+                            >
+                              {isMobile && reporte.direccion.length > 30 ? 
+                                `${reporte.direccion.substring(0, 30)}...` : 
+                                reporte.direccion
+                              }
                             </Typography>
-                            {reporte.latitud && reporte.longitud && (
-                              <Tooltip title={`GPS: ${reporte.latitud}, ${reporte.longitud}`}>
-                                <GPSIcon fontSize="small" sx={{ ml: 1, color: 'success.main' }} />
-                              </Tooltip>
-                            )}
-                            {reporte.tiene_fotos && (
-                              <Tooltip title="Incluye fotos">
-                                <PhotoCameraIcon fontSize="small" sx={{ ml: 1, color: 'info.main' }} />
-                              </Tooltip>
-                            )}
+                            
+                            <Box display="flex" gap={0.5} alignItems="center">
+                              {reporte.latitud && reporte.longitud && (
+                                <Tooltip title={`GPS: ${reporte.latitud}, ${reporte.longitud}`}>
+                                  <GPSIcon fontSize="small" sx={{ color: 'success.main' }} />
+                                </Tooltip>
+                              )}
+                              {reporte.tiene_fotos && (
+                                <Tooltip title="Incluye fotos">
+                                  <PhotoCameraIcon fontSize="small" sx={{ color: 'info.main' }} />
+                                </Tooltip>
+                              )}
+                            </Box>
                           </Box>
 
                           {/* Progreso visual */}
@@ -830,64 +1178,102 @@ const DashboardCiudadano = () => {
                               variant="determinate" 
                               value={reporte.progreso_porcentaje || estadoInfo.progreso}
                               color={estadoInfo.color}
+                              sx={{ height: 6, borderRadius: 3 }}
                             />
                           </Box>
 
-                          <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 2 }}>
+                          <Typography 
+                            variant="caption" 
+                            color="textSecondary" 
+                            display="block" 
+                            sx={{ 
+                              mb: 2,
+                              fontSize: { xs: '0.7rem', md: '0.75rem' }
+                            }}
+                          >
                             {estadoInfo.descripcion}
                           </Typography>
 
-                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                          {/* Info adicional */}
+                          <Box 
+                            display="flex" 
+                            justifyContent="space-between" 
+                            alignItems="center" 
+                            mb={2}
+                            flexDirection={{ xs: 'column', sm: 'row' }}
+                            gap={{ xs: 1, sm: 0 }}
+                          >
                             <Chip 
                               label={`Prioridad: ${reporte.prioridad}`}
                               color={getPrioridadColor(reporte.prioridad)}
                               variant="outlined"
                               size="small"
+                              sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
                             />
-                            <Typography variant="caption" color="textSecondary">
+                            <Typography 
+                              variant="caption" 
+                              color="textSecondary"
+                              sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
+                            >
                               Creado hace {reporte.dias_creado || 0} días
                             </Typography>
                           </Box>
 
+                          {/* Técnico asignado */}
                           {reporte.tecnico_asignado && (
                             <Alert severity="info" sx={{ mb: 2 }}>
-                              <Typography variant="body2">
+                              <Typography 
+                                variant="body2"
+                                sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                              >
                                 <strong>Técnico asignado:</strong> {reporte.tecnico_asignado}
                               </Typography>
                             </Alert>
                           )}
-
-                          <Divider sx={{ my: 2 }} />
-
-                          <Box display="flex" gap={1}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<CommentIcon />}
-                              onClick={() => abrirModalComentario(reporte)}
-                            >
-                              Agregar Comentario
-                            </Button>
-                          </Box>
                         </CardContent>
+
+                        {/* Acciones */}
+                        <Box sx={{ p: { xs: 2, md: 3 }, pt: 0 }}>
+                          <Divider sx={{ mb: 2 }} />
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="outlined"
+                            startIcon={<CommentIcon />}
+                            onClick={() => abrirModalComentario(reporte)}
+                            sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                          >
+                            Agregar Comentario
+                          </Button>
+                        </Box>
                       </Card>
                     </Grid>
                   );
                 })}
               </Grid>
             ) : (
-              <Paper elevation={2} sx={{ p: 4, textAlign: 'center' }}>
+              <Paper elevation={2} sx={{ p: { xs: 3, md: 4 }, textAlign: 'center' }}>
                 <ReporteIcon sx={{ fontSize: 60, color: 'grey.400', mb: 2 }} />
                 <Typography variant="h6" gutterBottom>
                   No has creado reportes aún
                 </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                <Typography 
+                  variant="body2" 
+                  color="textSecondary" 
+                  sx={{ 
+                    mb: 2,
+                    fontSize: { xs: '0.85rem', md: '0.875rem' }
+                  }}
+                >
                   Crea tu primer reporte para reportar problemas en tu comunidad
                 </Typography>
                 <Button 
                   variant="contained" 
                   startIcon={<AddIcon />}
                   onClick={() => setTabValue(0)}
+                  size={isMobile ? "large" : "medium"}
+                  fullWidth={isMobile}
+                  sx={{ maxWidth: { xs: '100%', sm: 300 } }}
                 >
                   Crear Mi Primer Reporte
                 </Button>
@@ -896,82 +1282,105 @@ const DashboardCiudadano = () => {
           </Box>
         )}
 
-        {/* TAB 2: Mi Actividad */}
+        {/* TAB 2: Mi Actividad - RESPONSIVO */}
         {tabValue === 2 && (
           <Box>
             <Typography variant="h6" gutterBottom>
               Mi Actividad y Estadísticas
             </Typography>
             
-            <Grid container spacing={3}>
-              <Grid xs={12} md={6}>
-                <Paper elevation={3} sx={{ p: 3 }}>
+            <Grid container spacing={{ xs: 2, md: 3 }}>
+              {/* Resumen de Participación */}
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom>
                     Resumen de Participación
                   </Typography>
                   <List>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText
                         primary="Reportes creados"
                         secondary={estadisticas.total_creados || 0}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText
                         primary="Reportes resueltos"
                         secondary={estadisticas.resueltos || 0}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText
                         primary="Reportes en progreso"
                         secondary={estadisticas.en_progreso || 0}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText
                         primary="Tiempo promedio de resolución"
                         secondary={estadisticas.promedio_dias_resolucion ? 
                           `${parseFloat(estadisticas.promedio_dias_resolucion).toFixed(1)} días` : 
                           'No disponible'
                         }
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
                   </List>
                 </Paper>
               </Grid>
               
-              <Grid xs={12} md={6}>
-                <Paper elevation={3} sx={{ p: 3 }}>
+              {/* Estado Actual */}
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom>
                     Estado Actual
                   </Typography>
                   <List>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemIcon>
                         <InfoIcon color="info" />
                       </ListItemIcon>
                       <ListItemText
                         primary="Reportes nuevos"
                         secondary={`${estadisticas.nuevos || 0} esperando revisión`}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemIcon>
                         <CheckIcon color="success" />
                       </ListItemIcon>
                       <ListItemText
                         primary="Reportes aprobados"
                         secondary={`${estadisticas.aprobados || 0} listos para asignación`}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemIcon>
                         <WarningIcon color="warning" />
                       </ListItemIcon>
                       <ListItemText
                         primary="En proceso de solución"
                         secondary={`${estadisticas.en_progreso || 0} siendo atendidos`}
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.9rem', md: '1rem' }
+                        }}
                       />
                     </ListItem>
                   </List>
@@ -980,12 +1389,25 @@ const DashboardCiudadano = () => {
             </Grid>
           </Box>
         )}
-      </Box>
+      </Container>
 
-      {/* Modal Agregar Comentario */}
-      <Dialog open={openComentario} onClose={cerrarModales} maxWidth="sm" fullWidth>
+      {/* Modal Agregar Comentario - Responsivo */}
+      <Dialog 
+        open={openComentario} 
+        onClose={cerrarModales} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>
-          Agregar Comentario
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Agregar Comentario</Typography>
+            {isMobile && (
+              <IconButton onClick={cerrarModales}>
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" gutterBottom>
@@ -994,7 +1416,7 @@ const DashboardCiudadano = () => {
           <TextField
             fullWidth
             multiline
-            rows={4}
+            rows={isMobile ? 4 : 4}
             label="Tu comentario"
             value={comentario}
             onChange={(e) => setComentario(e.target.value)}
@@ -1002,14 +1424,18 @@ const DashboardCiudadano = () => {
             sx={{ mt: 2 }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={cerrarModales}>
-            Cancelar
-          </Button>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button onClick={cerrarModales}>
+              Cancelar
+            </Button>
+          )}
           <Button
             onClick={handleAgregarComentario}
             variant="contained"
             disabled={!comentario.trim() || comentario.length < 5 || loading}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
           >
             {loading ? <CircularProgress size={20} /> : 'Agregar Comentario'}
           </Button>
@@ -1021,16 +1447,39 @@ const DashboardCiudadano = () => {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={cerrarSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ 
+          vertical: 'bottom', 
+          horizontal: isMobile ? 'center' : 'right' 
+        }}
       >
-        <Alert onClose={cerrarSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+        <Alert 
+          onClose={cerrarSnackbar} 
+          severity={snackbar.severity} 
+          sx={{ 
+            width: '100%',
+            fontSize: { xs: '0.85rem', md: '0.875rem' }
+          }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
 
-      {/* Footer Info */}
-      <Box mt={4} p={2} bgcolor="info.50" borderRadius={1} border="1px solid" borderColor="info.200">
-        <Typography variant="body2" color="textSecondary" textAlign="center">
+      {/* Footer Info - Responsivo */}
+      <Box 
+        mt={4} 
+        p={{ xs: 2, md: 3 }} 
+        bgcolor="info.50" 
+        borderRadius={1} 
+        border="1px solid" 
+        borderColor="info.200"
+        mx={{ xs: 2, md: 0 }}
+      >
+        <Typography 
+          variant="body2" 
+          color="textSecondary" 
+          textAlign="center"
+          sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+        >
           <strong>Permisos de Ciudadano:</strong> Crear reportes con ubicación GPS/mapa y fotos | 
           Hacer seguimiento a tus solicitudes | Agregar comentarios a tus reportes | Ver progreso en tiempo real |
           <strong> NO puedes:</strong> Ver reportes de otros ciudadanos | Cambiar estados | Gestionar usuarios | Acceder a configuraciones administrativas

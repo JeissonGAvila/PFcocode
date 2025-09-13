@@ -10,18 +10,28 @@ import {
   Box,
   CircularProgress,
   InputAdornment,
-  IconButton
+  IconButton,
+  useTheme,
+  useMediaQuery,
+  Fade,
+  Collapse,
+  Divider
 } from '@mui/material';
 import {
   Email as EmailIcon,
   Lock as LockIcon,
   Visibility,
   VisibilityOff,
-  Login as LoginIcon
+  Login as LoginIcon,
+  AccountBalance as BuildingIcon
 } from '@mui/icons-material';
 import { authService } from '../../services/authService.js';
 
 const LoginForm = ({ onLoginSuccess }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
   // Estados del formulario
   const [formData, setFormData] = useState({
     correo: '',
@@ -32,6 +42,7 @@ const LoginForm = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showTestUsers, setShowTestUsers] = useState(false);
 
   // Manejar cambios en inputs
   const handleChange = (e) => {
@@ -101,135 +112,415 @@ const LoginForm = ({ onLoginSuccess }) => {
     setShowPassword(!showPassword);
   };
 
+  // Toggle mostrar usuarios de prueba
+  const toggleTestUsers = () => {
+    setShowTestUsers(!showTestUsers);
+  };
+
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Paper elevation={6} sx={{ p: 4, borderRadius: 3 }}>
-        {/* Header */}
-        <Box textAlign="center" mb={4}>
-          <Typography variant="h4" component="h1" gutterBottom color="primary" fontWeight="bold">
-            🏛️ Sistema Municipal
-          </Typography>
-          <Typography variant="h6" color="textSecondary">
-            COCODE Huehuetenango
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Ingresa tus credenciales para acceder
-          </Typography>
-        </Box>
-
-        {/* Formulario */}
-        <Box component="form" onSubmit={handleSubmit}>
-          {/* Email */}
-          <TextField
-            fullWidth
-            margin="normal"
-            name="correo"
-            label="Correo Electrónico"
-            type="email"
-            variant="outlined"
-            value={formData.correo}
-            onChange={handleChange}
-            disabled={loading}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <EmailIcon color="action" />
-                </InputAdornment>
-              ),
-            }}
-            placeholder="admin@municipalidad.gob.gt"
-          />
-
-          {/* Contraseña */}
-          <TextField
-            fullWidth
-            margin="normal"
-            name="contrasena"
-            label="Contraseña"
-            type={showPassword ? 'text' : 'password'}
-            variant="outlined"
-            value={formData.contrasena}
-            onChange={handleChange}
-            disabled={loading}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon color="action" />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={toggleShowPassword} edge="end" disabled={loading}>
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            placeholder="••••••••"
-          />
-
-          {/* Error */}
-          {error && (
-            <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          {/* Botón Login */}
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            size="large"
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <LoginIcon />}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: `linear-gradient(135deg, 
+          ${theme.palette.primary.light}20 0%, 
+          ${theme.palette.secondary.light}20 50%, 
+          ${theme.palette.primary.main}10 100%)`,
+        display: 'flex',
+        alignItems: 'center',
+        py: { xs: 2, sm: 4 },
+        px: { xs: 1, sm: 2 }
+      }}
+    >
+      <Container 
+        maxWidth="sm" 
+        sx={{ 
+          width: '100%',
+          maxWidth: { xs: '100%', sm: '500px' }
+        }}
+      >
+        <Fade in timeout={800}>
+          <Paper 
+            elevation={isMobile ? 2 : 12}
             sx={{ 
-              mt: 3, 
-              mb: 2, 
-              py: 1.5,
-              fontSize: '1.1rem',
-              fontWeight: 'bold'
+              p: { xs: 3, sm: 4, md: 5 },
+              borderRadius: { xs: 2, sm: 3, md: 4 },
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: isMobile 
+                ? '0 4px 20px rgba(0, 0, 0, 0.1)'
+                : '0 8px 40px rgba(0, 0, 0, 0.15)',
+              position: 'relative',
+              overflow: 'hidden',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: `linear-gradient(90deg, 
+                  ${theme.palette.primary.main}, 
+                  ${theme.palette.secondary.main})`,
+                borderRadius: '4px 4px 0 0'
+              }
             }}
           >
-            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-          </Button>
-        </Box>
+            {/* Header */}
+            <Box textAlign="center" mb={{ xs: 3, sm: 4 }}>
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: { xs: 60, sm: 80 },
+                  height: { xs: 60, sm: 80 },
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, 
+                    ${theme.palette.primary.main}, 
+                    ${theme.palette.primary.dark})`,
+                  mb: 2,
+                  boxShadow: `0 8px 25px ${theme.palette.primary.main}30`
+                }}
+              >
+                <BuildingIcon 
+                  sx={{ 
+                    fontSize: { xs: 30, sm: 40 }, 
+                    color: 'white' 
+                  }} 
+                />
+              </Box>
+              
+              <Typography 
+                variant={isMobile ? "h5" : "h4"} 
+                component="h1" 
+                gutterBottom 
+                sx={{
+                  fontWeight: 700,
+                  background: `linear-gradient(135deg, 
+                    ${theme.palette.primary.main}, 
+                    ${theme.palette.secondary.main})`,
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  color: 'transparent',
+                  mb: 1
+                }}
+              >
+                Sistema Municipal
+              </Typography>
+              
+              <Typography 
+                variant={isMobile ? "subtitle1" : "h6"} 
+                sx={{
+                  color: theme.palette.primary.main,
+                  fontWeight: 600,
+                  mb: 0.5
+                }}
+              >
+                COCODE Huehuetenango
+              </Typography>
+              
+              <Typography 
+                variant="body2" 
+                color="textSecondary"
+                sx={{ 
+                  fontSize: { xs: '0.875rem', sm: '1rem' }
+                }}
+              >
+                Ingresa tus credenciales para acceder
+              </Typography>
+            </Box>
 
-        {/* Footer con usuarios de prueba */}
-        <Box textAlign="center" mt={4}>
-          <Typography variant="caption" color="textSecondary" display="block">
-            🧪 Usuarios de prueba disponibles:
-          </Typography>
-          <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 1 }}>
-            <strong>Admin:</strong> admin@municipalidad.gob.gt / admin123<br />
-            <strong>Técnico:</strong> energia@municipalidad.gob.gt / tecnico123<br />
-            <strong>Líder:</strong> lider@cocode.gt / lider123<br />
-            <strong>Ciudadano:</strong> ciudadano@email.com / ciudadano123
-          </Typography>
-        </Box>
-      </Paper>
+            {/* Formulario */}
+            <Box component="form" onSubmit={handleSubmit}>
+              {/* Email */}
+              <TextField
+                fullWidth
+                margin="normal"
+                name="correo"
+                label="Correo Electrónico"
+                type="email"
+                variant="outlined"
+                value={formData.correo}
+                onChange={handleChange}
+                disabled={loading}
+                size={isMobile ? "medium" : "large"}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="admin@municipalidad.gob.gt"
+                sx={{
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                    },
+                    '&.Mui-focused': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: `0 4px 20px ${theme.palette.primary.main}20`
+                    }
+                  }
+                }}
+              />
 
-      {/* Loading Overlay */}
-      {loading && (
-        <Box
-          position="fixed"
-          top={0}
-          left={0}
-          width="100%"
-          height="100%"
-          bgcolor="rgba(0, 0, 0, 0.3)"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          zIndex={9999}
-        >
-          <Paper sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <CircularProgress />
-            <Typography>Verificando credenciales...</Typography>
+              {/* Contraseña */}
+              <TextField
+                fullWidth
+                margin="normal"
+                name="contrasena"
+                label="Contraseña"
+                type={showPassword ? 'text' : 'password'}
+                variant="outlined"
+                value={formData.contrasena}
+                onChange={handleChange}
+                disabled={loading}
+                size={isMobile ? "medium" : "large"}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton 
+                        onClick={toggleShowPassword} 
+                        edge="end" 
+                        disabled={loading}
+                        sx={{ 
+                          transition: 'transform 0.2s',
+                          '&:hover': { transform: 'scale(1.1)' }
+                        }}
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="••••••••"
+                sx={{
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                    },
+                    '&.Mui-focused': {
+                      transform: 'translateY(-1px)',
+                      boxShadow: `0 4px 20px ${theme.palette.primary.main}20`
+                    }
+                  }
+                }}
+              />
+
+              {/* Error */}
+              <Collapse in={!!error}>
+                <Alert 
+                  severity="error" 
+                  sx={{ 
+                    mb: 2,
+                    borderRadius: 2,
+                    '& .MuiAlert-message': {
+                      fontSize: { xs: '0.875rem', sm: '1rem' }
+                    }
+                  }}
+                >
+                  {error}
+                </Alert>
+              </Collapse>
+
+              {/* Botón Login */}
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
+                sx={{ 
+                  mt: 2, 
+                  mb: 3, 
+                  py: { xs: 1.5, sm: 2 },
+                  fontSize: { xs: '1rem', sm: '1.1rem' },
+                  fontWeight: 700,
+                  borderRadius: 2,
+                  background: `linear-gradient(135deg, 
+                    ${theme.palette.primary.main}, 
+                    ${theme.palette.primary.dark})`,
+                  boxShadow: `0 6px 20px ${theme.palette.primary.main}40`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: `0 8px 25px ${theme.palette.primary.main}50`,
+                    background: `linear-gradient(135deg, 
+                      ${theme.palette.primary.dark}, 
+                      ${theme.palette.primary.main})`
+                  },
+                  '&:disabled': {
+                    transform: 'none',
+                    background: theme.palette.grey[400]
+                  }
+                }}
+              >
+                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              </Button>
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Footer con usuarios de prueba */}
+            <Box textAlign="center">
+              <Button
+                variant="text"
+                size="small"
+                onClick={toggleTestUsers}
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  textTransform: 'none',
+                  color: theme.palette.text.secondary,
+                  '&:hover': {
+                    backgroundColor: 'transparent',
+                    color: theme.palette.primary.main
+                  }
+                }}
+              >
+                🧪 {showTestUsers ? 'Ocultar' : 'Mostrar'} usuarios de prueba
+              </Button>
+              
+              <Collapse in={showTestUsers}>
+                <Box 
+                  sx={{ 
+                    mt: 2, 
+                    p: 2, 
+                    borderRadius: 2,
+                    backgroundColor: theme.palette.grey[50],
+                    border: `1px solid ${theme.palette.grey[200]}`
+                  }}
+                >
+                  <Typography 
+                    variant="caption" 
+                    color="textSecondary" 
+                    display="block"
+                    sx={{ 
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      lineHeight: 1.4,
+                      mb: 1
+                    }}
+                  >
+                    Usuarios de prueba disponibles:
+                  </Typography>
+                  
+                  <Box 
+                    sx={{ 
+                      display: 'flex',
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: { xs: 1, sm: 2 },
+                      flexWrap: 'wrap',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {[
+                      { role: 'Admin', email: 'admin@municipalidad.gob.gt', pass: 'admin123' },
+                      { role: 'Técnico', email: 'energia@municipalidad.gob.gt', pass: 'tecnico123' },
+                      { role: 'Líder', email: 'lider@cocode.gt', pass: 'lider123' },
+                      { role: 'Ciudadano', email: 'ciudadano@email.com', pass: 'ciudadano123' }
+                    ].map((user, index) => (
+                      <Paper
+                        key={index}
+                        elevation={0}
+                        sx={{
+                          p: 1,
+                          backgroundColor: 'white',
+                          border: `1px solid ${theme.palette.grey[300]}`,
+                          borderRadius: 1,
+                          fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                          textAlign: 'center',
+                          minWidth: { xs: '100%', sm: 'auto' },
+                          flex: { sm: 1 }
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight="bold" display="block">
+                          {user.role}
+                        </Typography>
+                        <Typography variant="caption" display="block" sx={{ wordBreak: 'break-all' }}>
+                          {user.email}
+                        </Typography>
+                        <Typography variant="caption" display="block">
+                          {user.pass}
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                </Box>
+              </Collapse>
+            </Box>
           </Paper>
-        </Box>
-      )}
-    </Container>
+        </Fade>
+
+        {/* Loading Overlay */}
+        {loading && (
+          <Fade in={loading}>
+            <Box
+              position="fixed"
+              top={0}
+              left={0}
+              width="100%"
+              height="100%"
+              bgcolor="rgba(0, 0, 0, 0.4)"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              zIndex={9999}
+              sx={{
+                backdropFilter: 'blur(4px)'
+              }}
+            >
+              <Paper 
+                sx={{ 
+                  // Responsive padding for loading overlay
+                  p: { xs: 2, sm: 2.5, md: 3 }, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: { xs: 1.5, sm: 2 },
+                  // Responsive border radius
+                  borderRadius: { xs: 1.5, sm: 2, md: 2.5 },
+                  // Responsive minimum width
+                  minWidth: { xs: '180px', sm: '220px', md: '250px' },
+                  // Responsive max width to prevent overflow on small screens
+                  maxWidth: { xs: 'calc(100vw - 32px)', sm: '400px' }
+                }}
+              >
+                <CircularProgress 
+                  size={isMobile ? 20 : isTablet ? 22 : 24} 
+                />
+                <Typography 
+                  sx={{ 
+                    // Responsive font size for loading text
+                    fontSize: { 
+                      xs: '0.875rem',   // Móvil: pequeño
+                      sm: '1rem',       // Tablet pequeña: medio
+                      md: '1.125rem',   // Tablet: medio-grande
+                      lg: '1.25rem'     // Desktop: grande
+                    }
+                  }}
+                >
+                  Verificando credenciales...
+                </Typography>
+              </Paper>
+            </Box>
+          </Fade>
+        )}
+      </Container>
+    </Box>
   );
 };
 

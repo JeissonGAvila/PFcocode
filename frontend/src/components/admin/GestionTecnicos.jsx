@@ -1,4 +1,4 @@
-// frontend/src/components/admin/GestionTecnicos.jsx
+// frontend/src/components/admin/GestionTecnicos.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -30,7 +30,19 @@ import {
   Grid,
   Card,
   CardContent,
-  Divider
+  Divider,
+  Container,
+  useTheme,
+  useMediaQuery,
+  Stack,
+  Collapse,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  AppBar,
+  Toolbar,
+  Badge
 } from '@mui/material';
 
 import {
@@ -40,25 +52,39 @@ import {
   VpnKey as KeyIcon,
   Engineering as EngineeringIcon,
   Refresh as RefreshIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  Close as CloseIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  Person as PersonIcon,
+  Business as BusinessIcon
 } from '@mui/icons-material';
 
 import { tecnicosService, departamentosTecnicos, rolesTecnicos } from '../../services/admin/tecnicosService';
 
 const GestionTecnicos = () => {
-  // 📊 ESTADOS PRINCIPALES
+  const theme = useTheme();
+  
+  // Breakpoints responsivos
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
+  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
+
+  // Estados principales
   const [tecnicos, setTecnicos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // 🎛️ ESTADOS DE MODALES
+  // Estados de modales
   const [modalTecnico, setModalTecnico] = useState(false);
   const [modalPassword, setModalPassword] = useState(false);
   const [tecnicoSeleccionado, setTecnicoSeleccionado] = useState(null);
   const [editMode, setEditMode] = useState(false);
 
-  // 📝 ESTADOS DEL FORMULARIO
+  // Estados del formulario
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
@@ -72,29 +98,33 @@ const GestionTecnicos = () => {
 
   const [nuevaContrasena, setNuevaContrasena] = useState('');
 
-  // 🔍 ESTADOS DE FILTROS
+  // Estados de filtros
   const [filtros, setFiltros] = useState({
     departamento: '',
     busqueda: ''
   });
 
-  // 📊 ESTADÍSTICAS
+  // Estados para UI responsiva
+  const [expandedCards, setExpandedCards] = useState({});
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Estadísticas
   const [estadisticas, setEstadisticas] = useState({
     total: 0,
     porDepartamento: {}
   });
 
-  // 🔄 CARGAR TÉCNICOS AL INICIAR
+  // Cargar técnicos al iniciar
   useEffect(() => {
     cargarTecnicos();
   }, []);
 
-  // 📊 ACTUALIZAR ESTADÍSTICAS CUANDO CAMBIAN LOS TÉCNICOS
+  // Actualizar estadísticas cuando cambian los técnicos
   useEffect(() => {
     actualizarEstadisticas();
   }, [tecnicos]);
 
-  // 📋 FUNCIÓN PARA CARGAR TÉCNICOS
+  // Función para cargar técnicos
   const cargarTecnicos = async () => {
     try {
       setLoading(true);
@@ -114,7 +144,7 @@ const GestionTecnicos = () => {
     }
   };
 
-  // 📊 ACTUALIZAR ESTADÍSTICAS
+  // Actualizar estadísticas
   const actualizarEstadisticas = () => {
     const total = tecnicos.length;
     const porDepartamento = {};
@@ -127,7 +157,7 @@ const GestionTecnicos = () => {
     setEstadisticas({ total, porDepartamento });
   };
 
-  // 🔍 TÉCNICOS FILTRADOS
+  // Técnicos filtrados
   const tecnicosFiltrados = tecnicos.filter(tecnico => {
     const coincideDepartamento = !filtros.departamento || tecnico.departamento === filtros.departamento;
     const coincideBusqueda = !filtros.busqueda || 
@@ -137,7 +167,15 @@ const GestionTecnicos = () => {
     return coincideDepartamento && coincideBusqueda;
   });
 
-  // ➕ ABRIR MODAL PARA CREAR
+  // Toggle para expandir cards en móvil
+  const toggleCardExpanded = (tecnicoId) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [tecnicoId]: !prev[tecnicoId]
+    }));
+  };
+
+  // Abrir modal para crear
   const abrirModalCrear = () => {
     setFormData({
       nombre: '',
@@ -153,7 +191,7 @@ const GestionTecnicos = () => {
     setModalTecnico(true);
   };
 
-  // ✏️ ABRIR MODAL PARA EDITAR
+  // Abrir modal para editar
   const abrirModalEditar = (tecnico) => {
     setFormData({
       nombre: tecnico.nombre || '',
@@ -170,14 +208,14 @@ const GestionTecnicos = () => {
     setModalTecnico(true);
   };
 
-  // 🔑 ABRIR MODAL PARA CAMBIAR CONTRASEÑA
+  // Abrir modal para cambiar contraseña
   const abrirModalPassword = (tecnico) => {
     setTecnicoSeleccionado(tecnico);
     setNuevaContrasena('');
     setModalPassword(true);
   };
 
-  // 💾 GUARDAR TÉCNICO (CREAR O EDITAR)
+  // Guardar técnico (crear o editar)
   const guardarTecnico = async () => {
     try {
       setError('');
@@ -209,7 +247,7 @@ const GestionTecnicos = () => {
     }
   };
 
-  // 🔑 CAMBIAR CONTRASEÑA
+  // Cambiar contraseña
   const cambiarContrasena = async () => {
     try {
       setError('');
@@ -229,7 +267,7 @@ const GestionTecnicos = () => {
     }
   };
 
-  // 🗑️ DESACTIVAR TÉCNICO
+  // Desactivar técnico
   const desactivarTecnico = async (tecnico) => {
     if (!window.confirm(`¿Estás seguro de que quieres desactivar a ${tecnico.nombre} ${tecnico.apellido}?`)) {
       return;
@@ -251,7 +289,7 @@ const GestionTecnicos = () => {
     }
   };
 
-  // 🚪 CERRAR MODAL
+  // Cerrar modal
   const cerrarModal = () => {
     setModalTecnico(false);
     setTecnicoSeleccionado(null);
@@ -268,7 +306,7 @@ const GestionTecnicos = () => {
     });
   };
 
-  // 📝 MANEJAR CAMBIOS EN FORMULARIO
+  // Manejar cambios en formulario
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -276,7 +314,7 @@ const GestionTecnicos = () => {
     }));
   };
 
-  // 🎨 OBTENER COLOR PARA DEPARTAMENTO
+  // Obtener color para departamento
   const getColorDepartamento = (departamento) => {
     const colores = {
       'Energía Eléctrica': 'primary',
@@ -289,26 +327,268 @@ const GestionTecnicos = () => {
     return colores[departamento] || 'default';
   };
 
+  // Vista móvil como cards
+  const TecnicosCardView = () => (
+    <Stack spacing={2}>
+      {tecnicosFiltrados.map((tecnico) => {
+        const isExpanded = expandedCards[tecnico.id];
+        return (
+          <Card key={tecnico.id} elevation={2}>
+            <CardContent sx={{ pb: 1 }}>
+              {/* Header del card */}
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                <Box flex={1}>
+                  <Typography variant="h6" sx={{ fontSize: '1.1rem', lineHeight: 1.2 }}>
+                    {tecnico.nombre} {tecnico.apellido}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                    {tecnico.correo}
+                  </Typography>
+                  <Chip
+                    label={tecnico.departamento}
+                    color={getColorDepartamento(tecnico.departamento)}
+                    size="small"
+                  />
+                </Box>
+                
+                <IconButton 
+                  size="small" 
+                  onClick={() => toggleCardExpanded(tecnico.id)}
+                >
+                  {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+              </Box>
+
+              {/* Información expandible */}
+              <Collapse in={isExpanded}>
+                <Box>
+                  <Divider sx={{ my: 2 }} />
+                  
+                  {tecnico.telefono && (
+                    <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PhoneIcon fontSize="small" />
+                      {tecnico.telefono}
+                    </Typography>
+                  )}
+                  
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Rol:</strong> {tecnico.rol || 'Sin rol asignado'}
+                  </Typography>
+                  
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>ID:</strong> {tecnico.id}
+                  </Typography>
+                  
+                  {tecnico.puede_asignar && (
+                    <Chip
+                      label="Puede Asignar"
+                      color="success"
+                      size="small"
+                      sx={{ mb: 2 }}
+                    />
+                  )}
+                </Box>
+              </Collapse>
+
+              {/* Acciones */}
+              <Box display="flex" justifyContent="space-between" alignItems="center" pt={1}>
+                <Button
+                  size="small"
+                  startIcon={<EditIcon />}
+                  onClick={() => abrirModalEditar(tecnico)}
+                  variant="outlined"
+                >
+                  Editar
+                </Button>
+                
+                <Box display="flex" gap={0.5}>
+                  <IconButton
+                    size="small"
+                    color="warning"
+                    onClick={() => abrirModalPassword(tecnico)}
+                    title="Cambiar contraseña"
+                  >
+                    <KeyIcon />
+                  </IconButton>
+                  
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => desactivarTecnico(tecnico)}
+                    title="Desactivar técnico"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </Stack>
+  );
+
+  // Vista desktop como tabla
+  const TecnicosTableView = () => (
+    <TableContainer component={Paper} elevation={3}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'grey.100' }}>
+            <TableCell><strong>Técnico</strong></TableCell>
+            <TableCell><strong>Departamento</strong></TableCell>
+            <TableCell><strong>Rol</strong></TableCell>
+            <TableCell><strong>Contacto</strong></TableCell>
+            <TableCell><strong>Puede Asignar</strong></TableCell>
+            <TableCell><strong>Acciones</strong></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {tecnicosFiltrados.map((tecnico) => (
+            <TableRow key={tecnico.id} hover>
+              <TableCell>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    {tecnico.nombre} {tecnico.apellido}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    ID: {tecnico.id}
+                  </Typography>
+                </Box>
+              </TableCell>
+              
+              <TableCell>
+                <Chip
+                  label={tecnico.departamento}
+                  color={getColorDepartamento(tecnico.departamento)}
+                  size="small"
+                />
+              </TableCell>
+              
+              <TableCell>
+                <Typography variant="body2">
+                  {tecnico.rol || 'Sin rol asignado'}
+                </Typography>
+              </TableCell>
+              
+              <TableCell>
+                <Box>
+                  <Typography variant="body2">
+                    {tecnico.correo}
+                  </Typography>
+                  {tecnico.telefono && (
+                    <Typography variant="caption" color="text.secondary">
+                      {tecnico.telefono}
+                    </Typography>
+                  )}
+                </Box>
+              </TableCell>
+              
+              <TableCell>
+                <Chip
+                  label={tecnico.puede_asignar ? 'Sí' : 'No'}
+                  color={tecnico.puede_asignar ? 'success' : 'default'}
+                  size="small"
+                />
+              </TableCell>
+              
+              <TableCell>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => abrirModalEditar(tecnico)}
+                    title="Editar técnico"
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  
+                  <IconButton
+                    size="small"
+                    color="warning"
+                    onClick={() => abrirModalPassword(tecnico)}
+                    title="Cambiar contraseña"
+                  >
+                    <KeyIcon />
+                  </IconButton>
+                  
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => desactivarTecnico(tecnico)}
+                    title="Desactivar técnico"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </TableCell>
+            </TableRow>
+          ))}
+          
+          {tecnicosFiltrados.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                <Typography color="text.secondary">
+                  No se encontraron técnicos
+                </Typography>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  if (loading && tecnicos.length === 0) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+          <Typography variant="body1" sx={{ ml: 2 }}>
+            Cargando técnicos...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
   return (
-    <Box sx={{ p: 3 }}>
-      {/* 🎯 ENCABEZADO */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
+      {/* Encabezado - Responsivo */}
+      <Box 
+        sx={{ 
+          mb: 3, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 2, sm: 0 }
+        }}
+      >
+        <Box textAlign={{ xs: 'center', sm: 'left' }}>
+          <Typography 
+            variant={isMobile ? "h5" : "h4"} 
+            gutterBottom 
+            sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+          >
             <EngineeringIcon color="primary" />
             Gestión de Técnicos
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography 
+            variant="body1" 
+            color="text.secondary"
+            sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
+          >
             Administra los técnicos del sistema municipal
           </Typography>
         </Box>
         
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={cargarTecnicos}
             disabled={loading}
+            fullWidth={isMobile}
           >
             Actualizar
           </Button>
@@ -317,32 +597,44 @@ const GestionTecnicos = () => {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={abrirModalCrear}
-            size="large"
+            size={isMobile ? "large" : "large"}
+            fullWidth={isMobile}
           >
             Crear Técnico
           </Button>
         </Box>
       </Box>
 
-      {/* 📊 ESTADÍSTICAS */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
+      {/* Estadísticas - Grid responsivo */}
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={4}>
           <Card>
-            <CardContent>
-              <Typography variant="h6" color="primary">
-                Total Técnicos
-              </Typography>
-              <Typography variant="h4">
+            <CardContent sx={{ textAlign: 'center' }}>
+              <Typography 
+                variant={isMobile ? "h5" : "h4"} 
+                color="primary"
+                sx={{ fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' } }}
+              >
                 {estadisticas.total}
+              </Typography>
+              <Typography 
+                variant="body1"
+                sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}
+              >
+                Total Técnicos
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         
-        <Grid item xs={12} md={9}>
+        <Grid item xs={12} md={8}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography 
+                variant="h6" 
+                gutterBottom
+                sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+              >
                 Por Departamento
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -352,6 +644,7 @@ const GestionTecnicos = () => {
                     label={`${dept}: ${cantidad}`}
                     color={getColorDepartamento(dept)}
                     variant="outlined"
+                    size={isMobile ? "small" : "medium"}
                   />
                 ))}
               </Box>
@@ -360,178 +653,122 @@ const GestionTecnicos = () => {
         </Grid>
       </Grid>
 
-      {/* 🔍 FILTROS */}
+      {/* Filtros - Responsivo */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterIcon />
-            Filtros
-          </Typography>
-          
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>Departamento</InputLabel>
-                <Select
-                  value={filtros.departamento}
-                  label="Departamento"
-                  onChange={(e) => setFiltros(prev => ({ ...prev, departamento: e.target.value }))}
-                >
-                  <MenuItem value="">Todos los departamentos</MenuItem>
-                  {departamentosTecnicos.map(dept => (
-                    <MenuItem key={dept} value={dept}>{dept}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={2}
+          >
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                fontSize: { xs: '1rem', sm: '1.25rem' }
+              }}
+            >
+              <FilterIcon />
+              Filtros
+            </Typography>
             
-            <Grid item xs={12} md={8}>
-              <TextField
-                fullWidth
-                label="Buscar técnico"
-                placeholder="Buscar por nombre o correo..."
-                value={filtros.busqueda}
-                onChange={(e) => setFiltros(prev => ({ ...prev, busqueda: e.target.value }))}
-              />
+            {isMobile && (
+              <IconButton onClick={() => setShowFilters(!showFilters)}>
+                {showFilters ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            )}
+          </Box>
+          
+          <Collapse in={!isMobile || showFilters}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Departamento</InputLabel>
+                  <Select
+                    value={filtros.departamento}
+                    label="Departamento"
+                    onChange={(e) => setFiltros(prev => ({ ...prev, departamento: e.target.value }))}
+                    size={isMobile ? "medium" : "medium"}
+                  >
+                    <MenuItem value="">Todos los departamentos</MenuItem>
+                    {departamentosTecnicos.map(dept => (
+                      <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Buscar técnico"
+                  placeholder="Buscar por nombre o correo..."
+                  value={filtros.busqueda}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, busqueda: e.target.value }))}
+                  size={isMobile ? "medium" : "medium"}
+                />
+              </Grid>
             </Grid>
-          </Grid>
+          </Collapse>
         </CardContent>
       </Card>
 
-      {/* 📋 TABLA DE TÉCNICOS */}
+      {/* Vista condicional según dispositivo */}
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Lista de Técnicos ({tecnicosFiltrados.length})
-          </Typography>
+          <Box 
+            display="flex" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            mb={2}
+          >
+            <Typography 
+              variant="h6"
+              sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+            >
+              Lista de Técnicos ({tecnicosFiltrados.length})
+            </Typography>
+          </Box>
           
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Técnico</strong></TableCell>
-                    <TableCell><strong>Departamento</strong></TableCell>
-                    <TableCell><strong>Rol</strong></TableCell>
-                    <TableCell><strong>Contacto</strong></TableCell>
-                    <TableCell><strong>Puede Asignar</strong></TableCell>
-                    <TableCell><strong>Acciones</strong></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {tecnicosFiltrados.map((tecnico) => (
-                    <TableRow key={tecnico.id} hover>
-                      <TableCell>
-                        <Box>
-                          <Typography variant="subtitle1" fontWeight="bold">
-                            {tecnico.nombre} {tecnico.apellido}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            ID: {tecnico.id}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Chip
-                          label={tecnico.departamento}
-                          color={getColorDepartamento(tecnico.departamento)}
-                          size="small"
-                        />
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Typography variant="body2">
-                          {tecnico.rol || 'Sin rol asignado'}
-                        </Typography>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Box>
-                          <Typography variant="body2">
-                            {tecnico.correo}
-                          </Typography>
-                          {tecnico.telefono && (
-                            <Typography variant="caption" color="text.secondary">
-                              {tecnico.telefono}
-                            </Typography>
-                          )}
-                        </Box>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Chip
-                          label={tecnico.puede_asignar ? 'Sí' : 'No'}
-                          color={tecnico.puede_asignar ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => abrirModalEditar(tecnico)}
-                            title="Editar técnico"
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          
-                          <IconButton
-                            size="small"
-                            color="warning"
-                            onClick={() => abrirModalPassword(tecnico)}
-                            title="Cambiar contraseña"
-                          >
-                            <KeyIcon />
-                          </IconButton>
-                          
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => desactivarTecnico(tecnico)}
-                            title="Desactivar técnico"
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  
-                  {tecnicosFiltrados.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No se encontraron técnicos
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+          {isMobile ? <TecnicosCardView /> : <TecnicosTableView />}
         </CardContent>
       </Card>
 
-      {/* 🎛️ MODAL CREAR/EDITAR TÉCNICO */}
+      {/* Modal Crear/Editar Técnico - Responsivo */}
       <Dialog 
         open={modalTecnico} 
         onClose={cerrarModal} 
         maxWidth="md" 
         fullWidth
+        fullScreen={isMobile}
       >
-        <DialogTitle>
-          {editMode ? 'Editar Técnico' : 'Crear Nuevo Técnico'}
-        </DialogTitle>
+        {isMobile && (
+          <AppBar position="relative">
+            <Toolbar>
+              <Typography variant="h6" sx={{ flex: 1 }}>
+                {editMode ? 'Editar Técnico' : 'Crear Nuevo Técnico'}
+              </Typography>
+              <IconButton 
+                edge="end" 
+                color="inherit" 
+                onClick={cerrarModal}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Toolbar>
+          </AppBar>
+        )}
+
+        {!isMobile && (
+          <DialogTitle>
+            {editMode ? 'Editar Técnico' : 'Crear Nuevo Técnico'}
+          </DialogTitle>
+        )}
         
-        <DialogContent>
+        <DialogContent sx={{ p: { xs: 2, md: 3 } }}>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
               <TextField
@@ -539,6 +776,7 @@ const GestionTecnicos = () => {
                 label="Nombre *"
                 value={formData.nombre}
                 onChange={(e) => handleInputChange('nombre', e.target.value)}
+                size={isMobile ? "medium" : "medium"}
               />
             </Grid>
             
@@ -548,6 +786,7 @@ const GestionTecnicos = () => {
                 label="Apellido *"
                 value={formData.apellido}
                 onChange={(e) => handleInputChange('apellido', e.target.value)}
+                size={isMobile ? "medium" : "medium"}
               />
             </Grid>
             
@@ -558,6 +797,7 @@ const GestionTecnicos = () => {
                 type="email"
                 value={formData.correo}
                 onChange={(e) => handleInputChange('correo', e.target.value)}
+                size={isMobile ? "medium" : "medium"}
               />
             </Grid>
             
@@ -567,6 +807,7 @@ const GestionTecnicos = () => {
                 label="Teléfono"
                 value={formData.telefono}
                 onChange={(e) => handleInputChange('telefono', e.target.value)}
+                size={isMobile ? "medium" : "medium"}
               />
             </Grid>
             
@@ -579,6 +820,7 @@ const GestionTecnicos = () => {
                   value={formData.contrasena}
                   onChange={(e) => handleInputChange('contrasena', e.target.value)}
                   helperText="Mínimo 6 caracteres"
+                  size={isMobile ? "medium" : "medium"}
                 />
               </Grid>
             )}
@@ -590,6 +832,7 @@ const GestionTecnicos = () => {
                   value={formData.departamento}
                   label="Departamento *"
                   onChange={(e) => handleInputChange('departamento', e.target.value)}
+                  size={isMobile ? "medium" : "medium"}
                 >
                   {departamentosTecnicos.map(dept => (
                     <MenuItem key={dept} value={dept}>{dept}</MenuItem>
@@ -605,6 +848,7 @@ const GestionTecnicos = () => {
                   value={formData.rol}
                   label="Rol"
                   onChange={(e) => handleInputChange('rol', e.target.value)}
+                  size={isMobile ? "medium" : "medium"}
                 >
                   <MenuItem value="">Sin rol específico</MenuItem>
                   {rolesTecnicos.map(rol => (
@@ -628,23 +872,61 @@ const GestionTecnicos = () => {
           </Grid>
         </DialogContent>
         
-        <DialogActions>
-          <Button onClick={cerrarModal}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={guardarTecnico}>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button onClick={cerrarModal}>
+              Cancelar
+            </Button>
+          )}
+          <Button 
+            variant="contained" 
+            onClick={guardarTecnico}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
+          >
             {editMode ? 'Actualizar' : 'Crear'} Técnico
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* 🔑 MODAL CAMBIAR CONTRASEÑA */}
-      <Dialog open={modalPassword} onClose={() => setModalPassword(false)}>
-        <DialogTitle>
-          Cambiar Contraseña - {tecnicoSeleccionado?.nombre} {tecnicoSeleccionado?.apellido}
-        </DialogTitle>
+      {/* Modal Cambiar Contraseña - Responsivo */}
+      <Dialog 
+        open={modalPassword} 
+        onClose={() => setModalPassword(false)}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        {isMobile && (
+          <AppBar position="relative">
+            <Toolbar>
+              <Typography variant="h6" sx={{ flex: 1 }}>
+                Cambiar Contraseña
+              </Typography>
+              <IconButton 
+                edge="end" 
+                color="inherit" 
+                onClick={() => setModalPassword(false)}
+              >
+                <CloseIcon />
+              </IconButton>
+            </Toolbar>
+          </AppBar>
+        )}
+
+        {!isMobile && (
+          <DialogTitle>
+            Cambiar Contraseña - {tecnicoSeleccionado?.nombre} {tecnicoSeleccionado?.apellido}
+          </DialogTitle>
+        )}
         
-        <DialogContent>
+        <DialogContent sx={{ p: { xs: 2, md: 3 } }}>
+          {isMobile && (
+            <Typography variant="subtitle1" gutterBottom sx={{ mb: 2 }}>
+              {tecnicoSeleccionado?.nombre} {tecnicoSeleccionado?.apellido}
+            </Typography>
+          )}
+          
           <TextField
             fullWidth
             label="Nueva Contraseña"
@@ -652,28 +934,46 @@ const GestionTecnicos = () => {
             value={nuevaContrasena}
             onChange={(e) => setNuevaContrasena(e.target.value)}
             helperText="Mínimo 6 caracteres"
-            sx={{ mt: 2 }}
+            sx={{ mt: { xs: 1, md: 2 } }}
+            size={isMobile ? "medium" : "medium"}
           />
         </DialogContent>
         
-        <DialogActions>
-          <Button onClick={() => setModalPassword(false)}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={cambiarContrasena}>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          {!isMobile && (
+            <Button onClick={() => setModalPassword(false)}>
+              Cancelar
+            </Button>
+          )}
+          <Button 
+            variant="contained" 
+            onClick={cambiarContrasena}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
+          >
             Cambiar Contraseña
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* 🎗️ SNACKBARS PARA MENSAJES */}
+      {/* Snackbars para mensajes - Responsivo */}
       <Snackbar
         open={!!success}
         autoHideDuration={6000}
         onClose={() => setSuccess('')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ 
+          vertical: 'bottom', 
+          horizontal: isMobile ? 'center' : 'right' 
+        }}
       >
-        <Alert onClose={() => setSuccess('')} severity="success" sx={{ width: '100%' }}>
+        <Alert 
+          onClose={() => setSuccess('')} 
+          severity="success" 
+          sx={{ 
+            width: '100%',
+            fontSize: { xs: '0.85rem', md: '0.875rem' }
+          }}
+        >
           {success}
         </Alert>
       </Snackbar>
@@ -682,13 +982,23 @@ const GestionTecnicos = () => {
         open={!!error}
         autoHideDuration={6000}
         onClose={() => setError('')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ 
+          vertical: 'bottom', 
+          horizontal: isMobile ? 'center' : 'right' 
+        }}
       >
-        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+        <Alert 
+          onClose={() => setError('')} 
+          severity="error" 
+          sx={{ 
+            width: '100%',
+            fontSize: { xs: '0.85rem', md: '0.875rem' }
+          }}
+        >
           {error}
         </Alert>
       </Snackbar>
-    </Box>
+    </Container>
   );
 };
 
