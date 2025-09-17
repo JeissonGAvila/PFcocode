@@ -1,4 +1,4 @@
-// frontend/src/components/ciudadano/MapaUbicacion.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA
+// frontend/src/components/ciudadano/MapaUbicacion.jsx - VERSIÓN SIN STYLED-JSX
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
@@ -54,7 +54,7 @@ const MapaUbicacion = ({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
-  const [showInfo, setShowInfo] = useState(!isMobile); // En móvil colapsado por defecto
+  const [showInfo, setShowInfo] = useState(!isMobile);
   const [mapReady, setMapReady] = useState(false);
 
   // Altura responsiva
@@ -228,7 +228,7 @@ const MapaUbicacion = ({
               background: #4285F4; 
               border: 3px solid white; 
               box-shadow: 0 0 10px rgba(66, 133, 244, 0.6);
-              animation: pulse 2s infinite;
+              animation: gps-pulse 2s infinite;
             "></div>
           `,
           iconSize: [isMobile ? 16 : 20, isMobile ? 16 : 20],
@@ -340,6 +340,31 @@ const MapaUbicacion = ({
   const toggleInfo = () => {
     setShowInfo(!showInfo);
   };
+
+  // Agregar estilos CSS para la animación del GPS
+  useEffect(() => {
+    // Crear estilos CSS para la animación
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes gps-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(66, 133, 244, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(66, 133, 244, 0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Cleanup
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   if (mapLoading) {
     return (
@@ -650,21 +675,6 @@ const MapaUbicacion = ({
           </Box>
         )}
       </Paper>
-
-      {/* Estilos para animación GPS */}
-      <style jsx>{`
-        @keyframes pulse {
-          0% {
-            box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.7);
-          }
-          70% {
-            box-shadow: 0 0 0 10px rgba(66, 133, 244, 0);
-          }
-          100% {
-            box-shadow: 0 0 0 0 rgba(66, 133, 244, 0);
-          }
-        }
-      `}</style>
     </Box>
   );
 };

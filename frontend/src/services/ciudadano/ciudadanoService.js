@@ -1,8 +1,8 @@
-// frontend/src/services/ciudadano/ciudadanoService.js - FINAL COMPLETO
+// frontend/src/services/ciudadano/ciudadanoService.js - 100% FIREBASE
 import { apiService } from '../api.js';
 
 const ciudadanoService = {
-  // Crear nuevo reporte SIN fotos (método original)
+  // Crear nuevo reporte SIN fotos
   crearReporte: async (reporteData) => {
     try {
       const response = await apiService.post('/api/ciudadano/reportes', reporteData);
@@ -12,39 +12,92 @@ const ciudadanoService = {
     }
   },
 
-  // NUEVO: Crear reporte CON fotos usando FormData
-  crearReporteConFotos: async (formData) => {
+  // NUEVO: Crear reporte CON fotos - 100% FIREBASE
+  crearReporteConFotos: async (reporteData, fotosArray) => {
     try {
-      const token = localStorage.getItem('token');
+      const { subirArchivoFirebase } = await import('../firebaseUploadService.js');
       
-      if (!token) {
-        throw new Error('No hay token de autenticación');
-      }
-      
-      const response = await fetch('http://localhost:3001/api/ciudadano/reportes/con-fotos', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-          // NO incluir Content-Type para FormData - el navegador lo establece automáticamente
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: Error al crear reporte`);
+      if (!reporteData || !fotosArray || fotosArray.length === 0) {
+        throw new Error('Datos del reporte y fotos son requeridos');
       }
 
-      const result = await response.json();
-      return result;
+      console.log('Firebase: Creando reporte con', fotosArray.length, 'fotos...');
+
+      // 1. Crear reporte base
+      const reporteCreado = await ciudadanoService.crearReporte(reporteData);
+      
+      if (!reporteCreado.success) {
+        throw new Error(reporteCreado.message || 'Error al crear reporte base');
+      }
+
+      const reporteId = reporteCreado.reporte.id;
+      
+      // 2. Subir fotos a Firebase
+      const fotosFirebase = [];
+      for (let i = 0; i < fotosArray.length; i++) {
+        const foto = fotosArray[i];
+        console.log(`Subiendo foto ${i + 1}/${fotosArray.length} a Firebase...`);
+        
+        const resultadoFirebase = await subirArchivoFirebase(foto.file, reporteId, 'ciudadano');
+        fotosFirebase.push(resultadoFirebase);
+      }
+
+      // 3. Guardar URLs de Firebase en BD
+      await ciudadanoService.guardarArchivosFirebase(reporteId, fotosFirebase);
+      
+      return {
+        success: true,
+        message: `Reporte ${reporteCreado.numero_reporte} creado con ${fotosFirebase.length} fotos en Firebase`,
+        reporte: reporteCreado.reporte,
+        numero_reporte: reporteCreado.numero_reporte,
+        fotos_firebase: fotosFirebase,
+        fotos_subidas: fotosFirebase.length
+      };
       
     } catch (error) {
-      console.error('Error en crearReporteConFotos:', error);
+      console.error('Error Firebase:', error);
       throw new Error(error.message || 'Error al crear reporte con fotos');
     }
   },
 
-  // Obtener MIS reportes (solo los míos)
+  // Guardar URLs de Firebase en base de datos
+  guardarArchivosFirebase: async (reporteId, fotosFirebase) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`http://localhost:3001/api/ciudadano/reportes/${reporteId}/archivos-firebase`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          archivos: fotosFirebase.map(foto => ({
+            nombre_archivo: foto.originalName,
+            url_archivo: foto.url,
+            tipo_archivo: foto.type,
+            tamano_kb: Math.round(foto.size / 1024),
+            firebase_path: foto.path,
+            es_evidencia_inicial: true,
+            subido_por_tipo: 'ciudadano'
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al guardar archivos Firebase');
+      }
+
+      return await response.json();
+      
+    } catch (error) {
+      console.error('Error guardando Firebase URLs:', error);
+      throw error;
+    }
+  },
+
+  // Resto de funciones igual
   getMisReportes: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes');
@@ -54,7 +107,6 @@ const ciudadanoService = {
     }
   },
 
-  // Agregar comentario a MI reporte
   agregarComentario: async (reporteId, comentario) => {
     try {
       const response = await apiService.post(`/api/ciudadano/reportes/${reporteId}/comentario`, {
@@ -66,7 +118,6 @@ const ciudadanoService = {
     }
   },
 
-  // Obtener tipos de problema disponibles
   getTiposProblema: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes/tipos-problema');
@@ -76,7 +127,6 @@ const ciudadanoService = {
     }
   },
 
-  // Obtener datos para formulario
   getDatosFormulario: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes/datos');
@@ -84,41 +134,17 @@ const ciudadanoService = {
     } catch (error) {
       throw new Error(error.message || 'Error al obtener datos del formulario');
     }
-  },
-
-  // Probar conexión
-  testConnection: async () => {
-    try {
-      const response = await ciudadanoService.getMisReportes();
-      return { 
-        success: true, 
-        message: 'Conexión exitosa con panel ciudadano',
-        reportes_creados: response.total || 0
-      };
-    } catch (error) {
-      return { 
-        success: false, 
-        message: error.message 
-      };
-    }
   }
 };
 
-// FUNCIONES DE GEOLOCALIZACIÓN
+// Geo utils y estados igual que antes
 export const geoUtils = {
-  // Obtener ubicación GPS del dispositivo
   obtenerUbicacionGPS: () => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocalización no soportada por este navegador'));
+        reject(new Error('Geolocalización no soportada'));
         return;
       }
-
-      const options = {
-        enableHighAccuracy: true,
-        timeout: 15000, // 15 segundos
-        maximumAge: 300000 // 5 minutos de cache
-      };
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -130,216 +156,55 @@ export const geoUtils = {
             timestamp: Date.now()
           };
 
-          // Validar que esté en Guatemala
           if (geoUtils.validarCoordenadasGuatemala(ubicacion.lat, ubicacion.lng)) {
             resolve(ubicacion);
           } else {
-            reject(new Error('La ubicación detectada está fuera de Guatemala'));
+            reject(new Error('Ubicación fuera de Guatemala'));
           }
         },
-        (error) => {
-          let mensaje = 'Error al obtener ubicación GPS';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              mensaje = 'Permiso de ubicación denegado por el usuario. Ve a configuración del navegador para habilitarlo.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              mensaje = 'Información de ubicación no disponible. Intenta desde un lugar con mejor señal GPS.';
-              break;
-            case error.TIMEOUT:
-              mensaje = 'Tiempo de espera agotado para obtener ubicación. Verifica tu conexión y señal GPS.';
-              break;
-          }
-          reject(new Error(mensaje));
-        },
-        options
+        (error) => reject(new Error('Error GPS: ' + error.message)),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
       );
     });
   },
 
-  // Validar coordenadas de Guatemala
   validarCoordenadasGuatemala: (lat, lng) => {
     if (!lat || !lng) return false;
-    
-    // Rango de Guatemala: 13.5°N-18.5°N, 88°W-92.5°W
-    const latValida = lat >= 13.5 && lat <= 18.5;
-    const lngValida = lng >= -92.5 && lng <= -88.0;
-    
-    return latValida && lngValida;
+    return lat >= 13.5 && lat <= 18.5 && lng >= -92.5 && lng <= -88.0;
   },
 
-  // Convertir coordenadas a dirección aproximada (usando Nominatim - gratis)
   coordenadasADireccion: async (lat, lng) => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es&zoom=18`
       );
-      
-      if (!response.ok) {
-        throw new Error('Error en servicio de geocodificación');
-      }
-      
       const data = await response.json();
       
-      if (data && data.display_name) {
-        // Extraer partes relevantes de la dirección para Guatemala
-        const address = data.address || {};
-        const partesDireccion = [];
-        
-        // Agregar elementos en orden de relevancia
-        if (address.house_number && address.road) {
-          partesDireccion.push(`${address.road} ${address.house_number}`);
-        } else if (address.road) {
-          partesDireccion.push(address.road);
-        }
-        
-        if (address.neighbourhood || address.suburb) {
-          partesDireccion.push(address.neighbourhood || address.suburb);
-        }
-        
-        if (address.city || address.town || address.village) {
-          partesDireccion.push(address.city || address.town || address.village);
-        }
-        
-        if (address.state) {
-          partesDireccion.push(address.state);
-        }
-
-        return {
-          direccion_completa: data.display_name,
-          direccion_resumida: partesDireccion.join(', ') || data.display_name,
-          ciudad: address.city || address.town || address.village || '',
-          departamento: address.state || '',
-          pais: address.country || 'Guatemala',
-          codigo_postal: address.postcode || '',
-          barrio: address.neighbourhood || address.suburb || ''
-        };
-      } else {
-        throw new Error('No se pudo obtener la dirección');
-      }
-    } catch (error) {
-      console.warn('Error en geocodificación inversa:', error);
       return {
-        direccion_completa: `Coordenadas: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-        direccion_resumida: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-        ciudad: '',
-        departamento: '',
-        pais: 'Guatemala',
-        barrio: ''
+        direccion_completa: data.display_name || `${lat}, ${lng}`,
+        direccion_resumida: data.display_name || `${lat}, ${lng}`
+      };
+    } catch (error) {
+      return {
+        direccion_completa: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        direccion_resumida: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
       };
     }
-  },
-
-  // Verificar si el navegador soporta geolocalización
-  soportaGeolocalizacion: () => {
-    return 'geolocation' in navigator;
-  },
-
-  // Calcular distancia entre dos puntos (en metros)
-  calcularDistancia: (lat1, lng1, lat2, lng2) => {
-    const R = 6371e3; // Radio de la Tierra en metros
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c; // Distancia en metros
-  },
-
-  // Obtener ubicación aproximada por IP (fallback)
-  obtenerUbicacionPorIP: async () => {
-    try {
-      const response = await fetch('http://ip-api.com/json/?fields=status,country,countryCode,region,regionName,city,lat,lon,timezone');
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        return {
-          lat: data.lat,
-          lng: data.lon,
-          ciudad: data.city,
-          region: data.regionName,
-          pais: data.country,
-          metodo: 'ip',
-          precision: 50000 // Precisión muy baja para IP
-        };
-      } else {
-        throw new Error('No se pudo obtener ubicación por IP');
-      }
-    } catch (error) {
-      throw new Error('Error al obtener ubicación por IP: ' + error.message);
-    }
   }
 };
 
-// Estados de reportes para ciudadanos
 export const estadosReporteCiudadano = {
-  'Nuevo': {
-    color: 'info',
-    descripcion: 'Tu reporte ha sido creado y está esperando revisión del líder COCODE',
-    progreso: 10
-  },
-  'Aprobado por Líder': {
-    color: 'success',
-    descripcion: 'Tu reporte fue aprobado por el líder de tu comunidad',
-    progreso: 30
-  },
-  'Rechazado por Líder': {
-    color: 'error',
-    descripcion: 'Tu reporte fue rechazado. Puedes contactar al líder para más información',
-    progreso: 0
-  },
-  'Asignado': {
-    color: 'primary',
-    descripcion: 'Tu reporte fue asignado a un técnico especializado',
-    progreso: 50
-  },
-  'En Proceso': {
-    color: 'warning',
-    descripcion: 'El técnico está trabajando en resolver tu problema',
-    progreso: 80
-  },
-  'Pendiente Materiales': {
-    color: 'secondary',
-    descripcion: 'El técnico está esperando materiales para completar la reparación',
-    progreso: 70
-  },
-  'Resuelto': {
-    color: 'success',
-    descripcion: 'Tu problema ha sido resuelto por el técnico',
-    progreso: 100
-  },
-  'Cerrado': {
-    color: 'success',
-    descripcion: 'El reporte ha sido cerrado exitosamente',
-    progreso: 100
-  },
-  'Reabierto': {
-    color: 'warning',
-    descripcion: 'El reporte fue reabierto porque el problema persiste',
-    progreso: 60
-  }
+  'Nuevo': { color: 'info', descripcion: 'Esperando revisión del líder', progreso: 10 },
+  'Aprobado por Líder': { color: 'success', descripcion: 'Aprobado por líder', progreso: 30 },
+  'Asignado': { color: 'primary', descripcion: 'Asignado a técnico', progreso: 50 },
+  'En Proceso': { color: 'warning', descripcion: 'Técnico trabajando', progreso: 80 },
+  'Resuelto': { color: 'success', descripcion: 'Problema resuelto', progreso: 100 }
 };
 
-// Prioridades de reportes
 export const prioridadesReporte = [
   { value: 'Baja', label: 'Baja - No urgente', color: 'success' },
-  { value: 'Media', label: 'Media - Atención normal', color: 'warning' },
+  { value: 'Media', label: 'Media - Normal', color: 'warning' },
   { value: 'Alta', label: 'Alta - Urgente', color: 'error' }
-];
-
-// Tipos de problemas más comunes
-export const tiposProblemaComunes = [
-  'Energía Eléctrica',
-  'Agua Potable', 
-  'Drenajes',
-  'Alumbrado Público',
-  'Recolección de Basura',
-  'Mantenimiento Vial'
 ];
 
 export default ciudadanoService;

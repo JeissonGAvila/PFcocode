@@ -1,5 +1,6 @@
-// backend/controllers/ciudadano/reportesController.js - COMPLETO CON SUBIDA DE FOTOS
+// backend/controllers/ciudadano/reportesController.js - ACTUALIZADO CON CATEGORÍAS Y TIPOS
 const pool = require('../../models/db');
+const { guardarArchivosFirebaseDB, getArchivosReporteDB } = require('../firebaseController');
 
 // Validar coordenadas de Guatemala
 const validarCoordenadasGuatemala = (lat, lng) => {
@@ -169,205 +170,95 @@ const crearReporte = async (req, res) => {
   }
 };
 
-// NUEVO: Crear reporte CON fotos
-const crearReporteConFotos = async (req, res) => {
+// NUEVA FUNCIÓN: Guardar archivos Firebase en BD (endpoint para el frontend)
+const guardarArchivosFirebase = async (req, res) => {
   try {
+    const { id: reporteId } = req.params;
+    const { archivos } = req.body;
     const ciudadanoId = req.user.id;
-    const {
-      titulo,
-      descripcion,
-      direccion,
-      id_tipo_problema,
-      prioridad = 'Media',
-      ubicacion_lat,
-      ubicacion_lng,
-      metodo_ubicacion = 'manual',
-      precision_metros
-    } = req.body;
 
-    // Validaciones básicas
-    if (!titulo || !descripcion || !direccion || !id_tipo_problema) {
-      return res.status(400).json({
-        error: 'Título, descripción, dirección y tipo de problema son requeridos'
-      });
-    }
-
-    if (direccion.length < 10) {
-      return res.status(400).json({
-        error: 'La dirección debe ser más específica (mínimo 10 caracteres)'
-      });
-    }
-
-    // Validar coordenadas si se proporcionan
-    if (ubicacion_lat && ubicacion_lng) {
-      if (!validarCoordenadasGuatemala(ubicacion_lat, ubicacion_lng)) {
-        return res.status(400).json({
-          error: 'Las coordenadas están fuera del territorio de Guatemala'
-        });
-      }
-    }
-
-    // Iniciar transacción para asegurar consistencia
-    const client = await pool.connect();
+    // Verificar que el reporte pertenece al ciudadano (PERMISOS DEL CIUDADANO)
+    const verificarQuery = `
+      SELECT id, titulo, numero_reporte
+      FROM reportes 
+      WHERE id = $1 AND id_ciudadano_colaborador = $2 AND estado = TRUE
+    `;
     
-    try {
-      await client.query('BEGIN');
-
-      // Verificar ciudadano
-      const ciudadanoResult = await client.query(
-        `SELECT id, nombre, apellido, id_zona, correo, telefono 
-         FROM ciudadanos_colaboradores 
-         WHERE id = $1 AND estado = TRUE`,
-        [ciudadanoId]
-      );
-
-      if (ciudadanoResult.rows.length === 0) {
-        throw new Error('Ciudadano no encontrado o inactivo');
-      }
-
-      const ciudadano = ciudadanoResult.rows[0];
-
-      // Verificar tipo de problema
-      const tipoResult = await client.query(
-        `SELECT id, nombre, departamento_responsable 
-         FROM tipos_problema 
-         WHERE id = $1 AND estado = TRUE`,
-        [id_tipo_problema]
-      );
-
-      if (tipoResult.rows.length === 0) {
-        throw new Error('Tipo de problema no válido');
-      }
-
-      // Generar número de reporte
-      const timestamp = Date.now();
-      const numeroReporte = `RPT-${timestamp.toString().slice(-6)}`;
-
-      // Obtener estado "Nuevo"
-      const estadoResult = await client.query(
-        `SELECT id FROM estados_reporte WHERE nombre = 'Nuevo' AND estado = TRUE`
-      );
-      
-      if (estadoResult.rows.length === 0) {
-        throw new Error('Estado "Nuevo" no configurado');
-      }
-
-      // Insertar reporte
-      const insertQuery = `
-        INSERT INTO reportes (
-          numero_reporte, titulo, descripcion, direccion,
-          id_tipo_problema, prioridad, id_estado,
-          id_ciudadano_colaborador, tipo_usuario_creador,
-          id_zona, latitud, longitud, metodo_ubicacion, precision_metros,
-          fecha_reporte, usuario_ingreso
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, 'ciudadano',
-          $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, $14
-        ) RETURNING *
-      `;
-
-      const reporteResult = await client.query(insertQuery, [
-        numeroReporte, titulo, descripcion, direccion,
-        id_tipo_problema, prioridad, estadoResult.rows[0].id,
-        ciudadanoId, ciudadano.id_zona,
-        ubicacion_lat || null, ubicacion_lng || null,
-        metodo_ubicacion || 'manual', precision_metros || null,
-        `ciudadano_${ciudadanoId}`
-      ]);
-
-      const nuevoReporte = reporteResult.rows[0];
-
-      // Guardar archivos si existen
-      const archivosGuardados = [];
-      if (req.files && req.files.length > 0) {
-        for (const file of req.files) {
-          const archivoQuery = `
-            INSERT INTO archivos_reporte (
-              id_reporte, nombre_archivo, url_archivo, tipo_archivo,
-              tamano_kb, es_evidencia_inicial, subido_por_tipo, subido_por_id,
-              fecha_subida, usuario_ingreso, estado
-            ) VALUES ($1, $2, $3, $4, $5, true, 'ciudadano', $6, CURRENT_TIMESTAMP, $7, true)
-            RETURNING *
-          `;
-
-          const archivoResult = await client.query(archivoQuery, [
-            nuevoReporte.id,
-            file.filename,
-            `/uploads/reportes/${file.filename}`,
-            file.mimetype,
-            Math.round(file.size / 1024),
-            ciudadanoId,
-            `ciudadano_${ciudadanoId}`
-          ]);
-
-          archivosGuardados.push(archivoResult.rows[0]);
-        }
-      }
-
-      // Registrar en seguimiento
-      try {
-        const comentarioSeguimiento = req.files && req.files.length > 0 
-          ? `Reporte creado por ciudadano con ${req.files.length} foto(s). Ubicación: ${ubicacion_lat && ubicacion_lng ? 'GPS' : 'Dirección'}: ${direccion}`
-          : `Reporte creado por ciudadano. Ubicación: ${ubicacion_lat && ubicacion_lng ? 'GPS' : 'Dirección'}: ${direccion}`;
-
-        await client.query(
-          `INSERT INTO seguimiento_reportes (
-            id_reporte, tipo_usuario_seguimiento, comentario, tipo_seguimiento, usuario_ingreso
-           ) VALUES ($1, 'ciudadano', $2, 'creacion', $3)`,
-          [nuevoReporte.id, comentarioSeguimiento, `ciudadano_${ciudadanoId}`]
-        );
-      } catch (seguimientoError) {
-        console.warn('No se pudo registrar seguimiento:', seguimientoError.message);
-      }
-
-      await client.query('COMMIT');
-
-      res.status(201).json({
-        success: true,
-        message: 'Reporte creado exitosamente con evidencia fotográfica',
-        reporte: {
-          ...nuevoReporte,
-          ciudadano_info: {
-            nombre: `${ciudadano.nombre} ${ciudadano.apellido}`,
-            correo: ciudadano.correo,
-            telefono: ciudadano.telefono
-          }
-        },
-        numero_reporte: numeroReporte,
-        archivos: archivosGuardados,
-        ubicacion: {
-          tiene_coordenadas: !!(ubicacion_lat && ubicacion_lng),
-          metodo: metodo_ubicacion || 'manual',
-          precision_metros: precision_metros
-        },
-        fotos_subidas: req.files ? req.files.length : 0
+    const verificarResult = await pool.query(verificarQuery, [reporteId, ciudadanoId]);
+    
+    if (verificarResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Reporte no encontrado o no tienes permisos'
       });
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
     }
+
+    const reporte = verificarResult.rows[0];
+
+    // Usar función central de Firebase
+    const archivosGuardados = await guardarArchivosFirebaseDB(
+      reporteId, 
+      archivos, 
+      ciudadanoId, 
+      'ciudadano'
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `${archivos.length} archivo(s) guardado(s) exitosamente en Firebase`,
+      reporte: {
+        id: reporte.id,
+        numero_reporte: reporte.numero_reporte,
+        titulo: reporte.titulo
+      },
+      archivos: archivosGuardados,
+      firebase_enabled: true,
+      archivos_guardados: archivosGuardados.length
+    });
 
   } catch (error) {
-    console.error('Error al crear reporte con fotos:', error);
+    console.error('Error al guardar archivos Firebase:', error);
+    res.status(500).json({
+      error: 'Error al guardar archivos Firebase',
+      message: error.message
+    });
+  }
+};
+
+// NUEVA FUNCIÓN: Obtener archivos de un reporte
+const getArchivosReporte = async (req, res) => {
+  try {
+    const { id: reporteId } = req.params;
+    const ciudadanoId = req.user.id;
+
+    // Verificar permisos del ciudadano
+    const verificarQuery = `
+      SELECT id, titulo, numero_reporte
+      FROM reportes 
+      WHERE id = $1 AND id_ciudadano_colaborador = $2 AND estado = TRUE
+    `;
     
-    // Si hay archivos subidos pero falló la transacción, limpiar archivos
-    if (req.files && req.files.length > 0) {
-      const fs = require('fs');
-      req.files.forEach(file => {
-        try {
-          fs.unlinkSync(file.path);
-        } catch (unlinkError) {
-          console.error('Error eliminando archivo:', unlinkError);
-        }
+    const verificarResult = await pool.query(verificarQuery, [reporteId, ciudadanoId]);
+    
+    if (verificarResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Reporte no encontrado o no tienes permisos'
       });
     }
 
+    // Usar función central de Firebase
+    const resultadoArchivos = await getArchivosReporteDB(reporteId);
+
+    res.json({
+      success: true,
+      reporte: verificarResult.rows[0],
+      ...resultadoArchivos,
+      firebase_enabled: true
+    });
+
+  } catch (error) {
+    console.error('Error al obtener archivos:', error);
     res.status(500).json({
-      error: 'Error al crear el reporte con fotos',
-      message: error.message
+      error: 'Error al obtener archivos del reporte'
     });
   }
 };
@@ -421,8 +312,10 @@ const getMisReportes = async (req, res) => {
           WHEN 'Cerrado' THEN 100
           ELSE 5
         END as progreso_porcentaje,
-        -- Verificar si tiene fotos
-        (SELECT COUNT(*) > 0 FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.estado = TRUE) as tiene_fotos
+        -- Verificar si tiene fotos (Firebase + locales)
+        (SELECT COUNT(*) > 0 FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.estado = TRUE) as tiene_fotos,
+        -- Contar archivos Firebase específicamente
+        (SELECT COUNT(*) FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.firebase_path IS NOT NULL AND ar.estado = TRUE) as fotos_firebase
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
@@ -461,7 +354,8 @@ const getMisReportes = async (req, res) => {
         estadisticas: statsResult.rows[0]
       },
       reportes: reportesResult.rows,
-      total: reportesResult.rows.length
+      total: reportesResult.rows.length,
+      firebase_enabled: true
     });
 
   } catch (error) {
@@ -540,11 +434,14 @@ const agregarComentario = async (req, res) => {
 const getTiposProblema = async (req, res) => {
   try {
     const tiposQuery = `
-      SELECT id, nombre, descripcion, departamento_responsable,
-             tiempo_estimado_dias, icono
-      FROM tipos_problema 
-      WHERE estado = TRUE 
-      ORDER BY nombre
+      SELECT tp.id, tp.id_categoria, tp.nombre, tp.descripcion, tp.departamento_responsable,
+             tp.tiempo_estimado_dias,
+             cp.nombre as categoria_nombre,
+             cp.color as categoria_color
+      FROM tipos_problema tp
+      INNER JOIN categorias_problema cp ON tp.id_categoria = cp.id
+      WHERE tp.estado = TRUE AND cp.estado = TRUE
+      ORDER BY cp.nombre, tp.nombre
     `;
     
     const result = await pool.query(tiposQuery);
@@ -562,10 +459,12 @@ const getTiposProblema = async (req, res) => {
   }
 };
 
-// Obtener datos para selects del formulario
+// FUNCIÓN CORREGIDA: Obtener datos para selects del formulario (CON CATEGORÍAS)
 const getDatosFormulario = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
+
+    console.log('🔍 Obteniendo datos para formulario de reporte...');
 
     // Obtener información del ciudadano
     const ciudadanoQuery = `
@@ -578,39 +477,76 @@ const getDatosFormulario = async (req, res) => {
     
     const ciudadanoResult = await pool.query(ciudadanoQuery, [ciudadanoId]);
 
-    // Obtener tipos de problema
-    const tiposResult = await pool.query(`
-      SELECT id, nombre, descripcion, departamento_responsable, tiempo_estimado_dias
-      FROM tipos_problema 
+    // Obtener categorías de problema
+    const categoriasQuery = `
+      SELECT 
+        id, 
+        nombre, 
+        descripcion, 
+        icono, 
+        color 
+      FROM categorias_problema 
       WHERE estado = TRUE 
-      ORDER BY nombre
-    `);
+      ORDER BY nombre ASC
+    `;
+    
+    // Obtener tipos de problema con sus categorías
+    const tiposQuery = `
+      SELECT 
+        tp.id,
+        tp.id_categoria,
+        tp.nombre,
+        tp.descripcion,
+        tp.departamento_responsable,
+        tp.tiempo_estimado_dias,
+        tp.costo_estimado,
+        cp.nombre as categoria_nombre,
+        cp.color as categoria_color
+      FROM tipos_problema tp
+      INNER JOIN categorias_problema cp ON tp.id_categoria = cp.id
+      WHERE tp.estado = TRUE AND cp.estado = TRUE
+      ORDER BY cp.nombre ASC, tp.nombre ASC
+    `;
+    
+    const [categoriasResult, tiposResult] = await Promise.all([
+      pool.query(categoriasQuery),
+      pool.query(tiposQuery)
+    ]);
+    
+    console.log(`📋 Encontradas ${categoriasResult.rows.length} categorías y ${tiposResult.rows.length} tipos`);
 
     res.json({
       success: true,
       ciudadano: ciudadanoResult.rows[0] || {},
+      categorias_problema: categoriasResult.rows,
       tipos_problema: tiposResult.rows,
       prioridades: ['Baja', 'Media', 'Alta'],
       metodos_ubicacion: [
         { value: 'gps', label: 'GPS del dispositivo' },
         { value: 'mapa', label: 'Selección en mapa' },
         { value: 'manual', label: 'Dirección manual' }
-      ]
+      ],
+      firebase_enabled: true,
+      mensaje: 'Datos obtenidos correctamente'
     });
 
   } catch (error) {
-    console.error('Error al obtener datos del formulario:', error);
+    console.error('❌ Error al obtener datos del formulario:', error);
     res.status(500).json({
-      error: 'Error al obtener datos del formulario'
+      success: false,
+      error: 'Error al obtener datos del formulario',
+      mensaje: error.message
     });
   }
 };
 
 module.exports = {
   crearReporte,
-  crearReporteConFotos, // NUEVO MÉTODO
   getMisReportes,
   agregarComentario,
   getTiposProblema,
-  getDatosFormulario
+  getDatosFormulario,  // FUNCIÓN CORREGIDA CON CATEGORÍAS
+  // NUEVAS FUNCIONES FIREBASE
+  guardarArchivosFirebase,
+  getArchivosReporte
 };
