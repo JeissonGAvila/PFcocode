@@ -1,4 +1,4 @@
-// frontend/src/vistas/liderCocode/Dashboard.jsx - VERSIÃ“N COMPLETAMENTE RESPONSIVA COMPLETA
+// frontend/src/vistas/liderCocode/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA CON MAPAS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -38,7 +38,10 @@ import {
   IconButton,
   Drawer,
   Collapse,
-  Fab
+  Fab,
+  Menu,
+  MenuList,
+  ListItemButton
 } from '@mui/material';
 import {
   Group as GroupIcon,
@@ -64,13 +67,303 @@ import {
   Menu as MenuIcon,
   Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  LocationOn as LocationIcon,
+  Map as MapIcon,
+  Fullscreen as FullscreenIcon,
+  FilterList as FilterIcon,
+  Sort as SortIcon,
+  ExitToApp as LogoutIcon,
+  AccountCircle as AccountIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
 
 // Importar el componente de reportes pendientes
 import ReportesPendientesAprobacion from '../../components/lider/ReportesPendientesAprobacion.jsx';
+
+// Componente de Mapa Responsivo
+const MapaReportesZona = ({ reportes, onMarkerClick, fullScreen = false }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [vista, setVista] = useState('satelite');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+
+  // Filtrar reportes para el mapa
+  const reportesFiltrados = reportes.filter(reporte => {
+    if (filtroEstado === 'todos') return true;
+    return reporte.estado_actual === filtroEstado;
+  });
+
+  return (
+    <Card elevation={3} sx={{ height: fullScreen ? '80vh' : { xs: 300, md: 400, lg: 500 } }}>
+      <CardContent sx={{ p: { xs: 1, md: 2 }, height: '100%', position: 'relative' }}>
+        {/* Header del mapa */}
+        <Box 
+          display="flex" 
+          justifyContent="space-between" 
+          alignItems="center" 
+          mb={1}
+          flexWrap="wrap"
+          gap={1}
+        >
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+          >
+            <MapIcon color="primary" />
+            {isMobile ? 'Mapa Zona' : 'Mapa de Reportes - Zona'}
+          </Typography>
+          
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {/* Filtro por estado */}
+            <FormControl size="small" sx={{ minWidth: { xs: 100, md: 120 } }}>
+              <InputLabel>Estado</InputLabel>
+              <Select
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                label="Estado"
+              >
+                <MenuItem value="todos">Todos</MenuItem>
+                <MenuItem value="Nuevo">Nuevos</MenuItem>
+                <MenuItem value="Aprobado por Líder">Aprobados</MenuItem>
+                <MenuItem value="En Proceso">En Proceso</MenuItem>
+                <MenuItem value="Resuelto">Resueltos</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {/* Vista del mapa */}
+            <FormControl size="small" sx={{ minWidth: { xs: 80, md: 100 } }}>
+              <InputLabel>Vista</InputLabel>
+              <Select
+                value={vista}
+                onChange={(e) => setVista(e.target.value)}
+                label="Vista"
+              >
+                <MenuItem value="satelite">Satélite</MenuItem>
+                <MenuItem value="mapa">Mapa</MenuItem>
+                <MenuItem value="hibrido">Híbrido</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
+
+        {/* Contenedor del mapa simulado */}
+        <Box
+          sx={{
+            width: '100%',
+            height: 'calc(100% - 60px)',
+            bgcolor: '#e8f5e8',
+            borderRadius: 1,
+            border: '2px solid #4caf50',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundImage: `
+              radial-gradient(circle at 20% 20%, rgba(76, 175, 80, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(33, 150, 243, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 40% 60%, rgba(255, 152, 0, 0.1) 0%, transparent 50%)
+            `,
+            overflow: 'hidden'
+          }}
+        >
+          {/* Simulación de calles */}
+          <Box
+            sx={{
+              position: 'absolute',
+              width: '100%',
+              height: '2px',
+              bgcolor: '#666',
+              top: '30%',
+              opacity: 0.3
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              width: '2px',
+              height: '100%',
+              bgcolor: '#666',
+              left: '40%',
+              opacity: 0.3
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              width: '100%',
+              height: '2px',
+              bgcolor: '#666',
+              top: '70%',
+              opacity: 0.3
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              width: '2px',
+              height: '100%',
+              bgcolor: '#666',
+              right: '30%',
+              opacity: 0.3
+            }}
+          />
+
+          {/* Marcadores de reportes */}
+          {reportesFiltrados.slice(0, 8).map((reporte, index) => {
+            const positions = [
+              { top: '15%', left: '25%' },
+              { top: '35%', left: '60%' },
+              { top: '55%', left: '20%' },
+              { top: '75%', left: '70%' },
+              { top: '25%', left: '80%' },
+              { top: '65%', left: '45%' },
+              { top: '45%', left: '15%' },
+              { top: '85%', left: '55%' }
+            ];
+            
+            const getMarkerColor = (estado) => {
+              switch (estado) {
+                case 'Nuevo': return '#ff9800';
+                case 'Aprobado por Líder': return '#2196f3';
+                case 'En Proceso': return '#9c27b0';
+                case 'Resuelto': return '#4caf50';
+                case 'Rechazado por Líder': return '#f44336';
+                default: return '#757575';
+              }
+            };
+
+            return (
+              <Box
+                key={reporte.id}
+                sx={{
+                  position: 'absolute',
+                  ...positions[index % positions.length],
+                  transform: 'translate(-50%, -50%)',
+                  cursor: 'pointer',
+                  zIndex: 2
+                }}
+                onClick={() => onMarkerClick && onMarkerClick(reporte)}
+              >
+                <LocationIcon
+                  sx={{
+                    fontSize: { xs: 24, md: 32 },
+                    color: getMarkerColor(reporte.estado_actual),
+                    filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))',
+                    '&:hover': {
+                      fontSize: { xs: 28, md: 36 },
+                      transition: 'all 0.2s ease'
+                    }
+                  }}
+                />
+                
+                {/* Tooltip */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    bgcolor: 'rgba(0,0,0,0.8)',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: 1,
+                    fontSize: { xs: '0.7rem', md: '0.8rem' },
+                    whiteSpace: 'nowrap',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                    transition: 'opacity 0.2s ease',
+                    zIndex: 3,
+                    '&:hover': {
+                      opacity: 1
+                    }
+                  }}
+                >
+                  {reporte.titulo.length > 20 ? 
+                    `${reporte.titulo.substring(0, 20)}...` : 
+                    reporte.titulo
+                  }
+                </Box>
+              </Box>
+            );
+          })}
+
+          {/* Centro del mapa con icono de la zona */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'success.main',
+              color: 'white',
+              borderRadius: '50%',
+              width: { xs: 40, md: 50 },
+              height: { xs: 40, md: 50 },
+              zIndex: 1
+            }}
+          >
+            <GroupIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
+          </Box>
+
+          {/* Texto central */}
+          <Typography
+            variant="h6"
+            sx={{
+              position: 'absolute',
+              bottom: { xs: 20, md: 30 },
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: 'success.dark',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              fontSize: { xs: '0.9rem', md: '1.1rem' },
+              textShadow: '1px 1px 2px rgba(255,255,255,0.8)'
+            }}
+          >
+            Zona {reportes.length > 0 ? '1 - Centro' : 'Sin Reportes'}
+          </Typography>
+        </Box>
+
+        {/* Leyenda del mapa */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: { xs: 8, md: 16 },
+            right: { xs: 8, md: 16 },
+            bgcolor: 'rgba(255,255,255,0.9)',
+            borderRadius: 1,
+            p: { xs: 0.5, md: 1 },
+            fontSize: { xs: '0.7rem', md: '0.8rem' }
+          }}
+        >
+          <Typography variant="caption" fontWeight="bold" display="block">
+            Leyenda:
+          </Typography>
+          <Box display="flex" flexDirection="column" gap={0.5}>
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <LocationIcon sx={{ fontSize: 14, color: '#ff9800' }} />
+              <Typography variant="caption">Nuevos</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <LocationIcon sx={{ fontSize: 14, color: '#2196f3' }} />
+              <Typography variant="caption">Aprobados</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <LocationIcon sx={{ fontSize: 14, color: '#4caf50' }} />
+              <Typography variant="caption">Resueltos</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
 
 const DashboardLider = () => {
   const { user } = useAuth();
@@ -87,8 +380,9 @@ const DashboardLider = () => {
   // Estados para UI responsiva
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [expandedCards, setExpandedCards] = useState({});
+  const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   
-  // Estados para botones de aprobaciÃ³n
+  // Estados para botones de aprobación
   const [modalAprobar, setModalAprobar] = useState(false);
   const [modalRechazar, setModalRechazar] = useState(false);
   const [reporteSeleccionado, setReporteSeleccionado] = useState(null);
@@ -98,11 +392,11 @@ const DashboardLider = () => {
   
   const motivosRechazo = [
     'Reporte duplicado',
-    'InformaciÃ³n insuficiente', 
+    'Información insuficiente', 
     'No es competencia municipal',
     'Problema ya resuelto',
-    'UbicaciÃ³n incorrecta',
-    'Falta documentaciÃ³n',
+    'Ubicación incorrecta',
+    'Falta documentación',
     'No es prioridad comunitaria',
     'Otro motivo'
   ];
@@ -138,7 +432,7 @@ const DashboardLider = () => {
     },
     {
       id: 2,
-      nombre: 'Ana PÃ©rez',
+      nombre: 'Ana Pérez',
       correo: 'ana.perez@email.com',
       telefono: '7723-2345',
       direccion: '2da Avenida 5-20, Zona 1',
@@ -148,7 +442,7 @@ const DashboardLider = () => {
     },
     {
       id: 3,
-      nombre: 'Luis GonzÃ¡lez',
+      nombre: 'Luis González',
       correo: 'luis.gonzalez@email.com',
       telefono: '7734-3456',
       direccion: '4ta Calle 8-10, Zona 1',
@@ -178,7 +472,7 @@ const DashboardLider = () => {
     }
   };
 
-  // Cargar reportes pendientes de aprobaciÃ³n
+  // Cargar reportes pendientes de aprobación
   const cargarReportesPendientes = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -223,10 +517,10 @@ const DashboardLider = () => {
       if (data.success) {
         setReportesZona(data.reportes || []);
         
-        // Calcular estadÃ­sticas
+        // Calcular estadísticas
         const reportes = data.reportes || [];
         const activos = reportes.filter(r => 
-          ['Nuevo', 'Aprobado por LÃ­der', 'Asignado', 'En Proceso'].includes(r.estado_actual)
+          ['Nuevo', 'Aprobado por Líder', 'Asignado', 'En Proceso'].includes(r.estado_actual)
         ).length;
         const resueltos = reportes.filter(r => 
           ['Resuelto', 'Cerrado'].includes(r.estado_actual)
@@ -273,7 +567,7 @@ const DashboardLider = () => {
 
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('No hay token de autenticaciÃ³n');
+        throw new Error('No hay token de autenticación');
       }
 
       const response = await fetch(`http://localhost:3001/api/lider/reportes/${reporteSeleccionado.id}/aprobar`, {
@@ -300,7 +594,7 @@ const DashboardLider = () => {
         setReportesZona(prev => 
           prev.map(r => 
             r.id === reporteSeleccionado.id 
-              ? { ...r, estado_actual: 'Aprobado por LÃ­der' }
+              ? { ...r, estado_actual: 'Aprobado por Líder' }
               : r
           )
         );
@@ -332,7 +626,7 @@ const DashboardLider = () => {
 
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('No hay token de autenticaciÃ³n');
+        throw new Error('No hay token de autenticación');
       }
 
       const response = await fetch(`http://localhost:3001/api/lider/reportes/${reporteSeleccionado.id}/rechazar`, {
@@ -360,7 +654,7 @@ const DashboardLider = () => {
         setReportesZona(prev => 
           prev.map(r => 
             r.id === reporteSeleccionado.id 
-              ? { ...r, estado_actual: 'Rechazado por LÃ­der' }
+              ? { ...r, estado_actual: 'Rechazado por Líder' }
               : r
           )
         );
@@ -388,15 +682,21 @@ const DashboardLider = () => {
     setTimeout(() => setMensaje(''), 3000);
   };
 
+  // Manejar click en marcador del mapa
+  const handleMarkerClick = (reporte) => {
+    setReporteSeleccionado(reporte);
+    // Aquí podrías abrir un modal con detalles del reporte
+  };
+
   const getEstadoColor = (estado) => {
     switch (estado) {
       case 'Nuevo': return 'warning';
-      case 'Aprobado por LÃ­der': return 'info';
+      case 'Aprobado por Líder': return 'info';
       case 'Asignado': return 'primary';
       case 'En Proceso': return 'secondary';
       case 'Resuelto': return 'success';
       case 'Cerrado': return 'success';
-      case 'Rechazado por LÃ­der': return 'error';
+      case 'Rechazado por Líder': return 'error';
       case 'Reabierto': return 'error';
       default: return 'default';
     }
@@ -419,7 +719,7 @@ const DashboardLider = () => {
     
     if (newValue === 0) {
       cargarReportesZona();
-    } else if (newValue === 3) {
+    } else if (newValue === 4) {
       cargarReportesPendientes();
     }
   };
@@ -434,28 +734,89 @@ const DashboardLider = () => {
     );
   };
 
-  // Header responsivo
+  // Header responsivo mejorado
   const HeaderResponsivo = () => (
     <Box bgcolor="success.main" color="white">
-      {/* MÃ³vil Header */}
+      {/* Móvil Header */}
       {isMobile && (
         <AppBar position="static" color="transparent" elevation={0}>
-          <Toolbar>
+          <Toolbar sx={{ minHeight: 64, px: 2 }}>
             <IconButton
               color="inherit"
               edge="start"
               onClick={() => setMobileDrawerOpen(true)}
+              sx={{ mr: 2 }}
             >
               <MenuIcon />
             </IconButton>
+            
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="h6" noWrap>
-                Panel LÃ­der COCODE
+                Panel Líder COCODE
               </Typography>
             </Box>
-            <Badge badgeContent={reportesPendientes.length} color="warning">
+
+            {/* Notificaciones */}
+            <Badge badgeContent={reportesPendientes.length} color="warning" sx={{ mr: 1 }}>
               <NotificationIcon />
             </Badge>
+
+            {/* Menú usuario móvil */}
+            <IconButton
+              color="inherit"
+              onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+            >
+              <AccountIcon />
+            </IconButton>
+            
+            <Menu
+              anchorEl={userMenuAnchor}
+              open={Boolean(userMenuAnchor)}
+              onClose={() => setUserMenuAnchor(null)}
+              PaperProps={{
+                sx: { width: 200 }
+              }}
+            >
+              <MenuList>
+                <ListItem>
+                  <ListItemIcon>
+                    <AccountIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={user?.nombre}
+                    secondary={user?.correo}
+                    primaryTypographyProps={{ fontSize: '0.9rem' }}
+                    secondaryTypographyProps={{ fontSize: '0.8rem' }}
+                  />
+                </ListItem>
+                <Divider />
+                <ListItemButton onClick={handleRefrescar}>
+                  <ListItemIcon>
+                    <RefreshIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Refrescar" />
+                </ListItemButton>
+                <ListItemButton>
+                  <ListItemIcon>
+                    <SettingsIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="Configuración" />
+                </ListItemButton>
+                <Divider />
+                <ListItemButton>
+                  <LogoutButton 
+                    variant="text" 
+                    color="inherit" 
+                    startIcon={<LogoutIcon />}
+                    sx={{ 
+                      width: '100%', 
+                      justifyContent: 'flex-start',
+                      color: 'error.main'
+                    }}
+                  />
+                </ListItemButton>
+              </MenuList>
+            </Menu>
           </Toolbar>
         </AppBar>
       )}
@@ -468,12 +829,12 @@ const DashboardLider = () => {
               <Stack direction="row" alignItems="center" spacing={2} mb={1}>
                 <GroupIcon sx={{ fontSize: { xs: 32, md: 40 } }} />
                 <Typography variant={{ xs: "h5", md: "h4" }} component="h1">
-                  Panel LÃ­der COCODE
+                  Panel Líder COCODE
                 </Typography>
               </Stack>
               
               <Typography variant={{ xs: "subtitle1", md: "h6" }} gutterBottom>
-                LÃ­der: {user?.nombre}
+                Líder: {user?.nombre}
               </Typography>
               
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, opacity: 0.9 }}>
@@ -498,7 +859,7 @@ const DashboardLider = () => {
             </Grid>
             
             <Grid item xs={12} md={4}>
-              <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+              <Stack direction="row" spacing={2} justifyContent={{ xs: 'flex-start', md: 'flex-end' }} alignItems="center" flexWrap="wrap">
                 <Badge badgeContent={reportesPendientes.length} color="warning">
                   <NotificationIcon />
                 </Badge>
@@ -510,11 +871,75 @@ const DashboardLider = () => {
                   onClick={handleRefrescar}
                   disabled={loading}
                   size={isMobile ? "small" : "medium"}
+                  sx={{ 
+                    minWidth: { xs: 40, md: 120 },
+                    '& .MuiButton-startIcon': { 
+                      marginRight: { xs: 0, md: 1 } 
+                    }
+                  }}
                 >
                   {isMobile ? '' : 'Refrescar'}
                 </Button>
                 
-                <LogoutButton variant="text" color="inherit" />
+                {/* Menú usuario desktop */}
+                <IconButton
+                  color="inherit"
+                  onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+                  sx={{ 
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+                  }}
+                >
+                  <AccountIcon />
+                </IconButton>
+                
+                <Menu
+                  anchorEl={userMenuAnchor}
+                  open={Boolean(userMenuAnchor)}
+                  onClose={() => setUserMenuAnchor(null)}
+                  PaperProps={{
+                    sx: { width: 250, mt: 1 }
+                  }}
+                >
+                  <MenuList>
+                    <ListItem>
+                      <ListItemIcon>
+                        <AccountIcon />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={user?.nombre}
+                        secondary={user?.correo}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                      />
+                    </ListItem>
+                    <Divider />
+                    <ListItemButton onClick={handleRefrescar}>
+                      <ListItemIcon>
+                        <RefreshIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Refrescar datos" />
+                    </ListItemButton>
+                    <ListItemButton>
+                      <ListItemIcon>
+                        <SettingsIcon />
+                      </ListItemIcon>
+                      <ListItemText primary="Configuración" />
+                    </ListItemButton>
+                    <Divider />
+                    <ListItemButton>
+                      <LogoutButton 
+                        variant="text" 
+                        color="error" 
+                        startIcon={<LogoutIcon />}
+                        sx={{ 
+                          width: '100%', 
+                          justifyContent: 'flex-start',
+                          textTransform: 'none'
+                        }}
+                      />
+                    </ListItemButton>
+                  </MenuList>
+                </Menu>
               </Stack>
             </Grid>
           </Grid>
@@ -523,19 +948,19 @@ const DashboardLider = () => {
     </Box>
   );
 
-  // Navigation Drawer para mÃ³vil
+  // Navigation Drawer para móvil
   const NavigationDrawer = () => (
     <Drawer
       anchor="left"
       open={mobileDrawerOpen}
       onClose={() => setMobileDrawerOpen(false)}
       PaperProps={{
-        sx: { width: 280 }
+        sx: { width: 300 }
       }}
     >
       <Box sx={{ p: 2 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">MenÃº LÃ­der</Typography>
+          <Typography variant="h6">Menú Líder</Typography>
           <IconButton onClick={() => setMobileDrawerOpen(false)}>
             <CloseIcon />
           </IconButton>
@@ -548,7 +973,11 @@ const DashboardLider = () => {
             startIcon={<ReporteIcon />}
             onClick={() => handleTabChange(null, 0)}
             size="large"
-            sx={{ justifyContent: 'flex-start' }}
+            sx={{ 
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
           >
             Reportes de mi Zona
           </Button>
@@ -556,32 +985,59 @@ const DashboardLider = () => {
           <Button
             fullWidth
             variant={tabValue === 1 ? "contained" : "text"}
-            startIcon={<PeopleIcon />}
+            startIcon={<MapIcon />}
             onClick={() => handleTabChange(null, 1)}
             size="large"
-            sx={{ justifyContent: 'flex-start' }}
+            sx={{ 
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
+          >
+            Mapa de la Zona
+          </Button>
+          
+          <Button
+            fullWidth
+            variant={tabValue === 2 ? "contained" : "text"}
+            startIcon={<PeopleIcon />}
+            onClick={() => handleTabChange(null, 2)}
+            size="large"
+            sx={{ 
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
           >
             Ciudadanos ({ciudadanosZona.length})
           </Button>
           
           <Button
             fullWidth
-            variant={tabValue === 2 ? "contained" : "text"}
+            variant={tabValue === 3 ? "contained" : "text"}
             startIcon={<EngineeringIcon />}
-            onClick={() => handleTabChange(null, 2)}
+            onClick={() => handleTabChange(null, 3)}
             size="large"
-            sx={{ justifyContent: 'flex-start' }}
+            sx={{ 
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
           >
-            CoordinaciÃ³n
+            Coordinación
           </Button>
 
           <Button
             fullWidth
-            variant={tabValue === 3 ? "contained" : "text"}
+            variant={tabValue === 4 ? "contained" : "text"}
             startIcon={<WarningIcon />}
-            onClick={() => handleTabChange(null, 3)}
+            onClick={() => handleTabChange(null, 4)}
             size="large"
-            sx={{ justifyContent: 'flex-start' }}
+            sx={{ 
+              justifyContent: 'flex-start',
+              textTransform: 'none',
+              fontSize: '1rem'
+            }}
           >
             Pendientes ({reportesPendientes.length})
           </Button>
@@ -589,10 +1045,10 @@ const DashboardLider = () => {
 
         <Divider sx={{ my: 2 }} />
         
-        {/* Info del usuario en mÃ³vil */}
+        {/* Info del usuario en móvil */}
         <Box>
           <Typography variant="subtitle2" gutterBottom>
-            LÃ­der: {user?.nombre}
+            Líder: {user?.nombre}
           </Typography>
           <Typography variant="body2" color="textSecondary">
             {user?.correo}
@@ -612,7 +1068,7 @@ const DashboardLider = () => {
       {/* Header Responsivo */}
       <HeaderResponsivo />
       
-      {/* Navigation Drawer para mÃ³vil */}
+      {/* Navigation Drawer para móvil */}
       <NavigationDrawer />
 
       {/* Contenido Principal */}
@@ -634,14 +1090,14 @@ const DashboardLider = () => {
         <Alert severity="success" sx={{ mb: 3 }}>
           <Typography variant="body2">
             <strong>Responsabilidad Comunitaria:</strong> Gestionas los reportes y ciudadanos de <strong>{user?.zona || 'tu zona'}</strong>. 
-            Coordinas con tÃ©cnicos y validas reportes comunitarios.
+            Coordinas con técnicos y validas reportes comunitarios.
             {reportesPendientes.length > 0 && (
-              <strong> Tienes {reportesPendientes.length} reportes pendientes de aprobaciÃ³n.</strong>
+              <strong> Tienes {reportesPendientes.length} reportes pendientes de aprobación.</strong>
             )}
           </Typography>
         </Alert>
 
-        {/* EstadÃ­sticas reales - RESPONSIVAS */}
+        {/* Estadísticas reales - RESPONSIVAS */}
         <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: 4 }}>
           <Grid item xs={6} sm={3}>
             <Card elevation={3}>
@@ -679,7 +1135,7 @@ const DashboardLider = () => {
                   variant="body2"
                   sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
                 >
-                  Pendientes AprobaciÃ³n
+                  Pendientes Aprobación
                 </Typography>
               </CardContent>
             </Card>
@@ -741,14 +1197,16 @@ const DashboardLider = () => {
                   minHeight: { xs: 56, md: 64 },
                   fontSize: { xs: '0.8rem', md: '0.95rem' },
                   fontWeight: 500,
-                  px: { xs: 1, md: 2 }
+                  px: { xs: 1, md: 2 },
+                  textTransform: 'none'
                 }
               }}
             >
               <Tab label="Reportes de mi Zona" />
+              <Tab label="Mapa de la Zona" />
               <Tab label="Ciudadanos" />
-              <Tab label="CoordinaciÃ³n" />
-              <Tab label={`Pendientes AprobaciÃ³n (${reportesPendientes.length})`} />
+              <Tab label="Coordinación" />
+              <Tab label={`Pendientes Aprobación (${reportesPendientes.length})`} />
             </Tabs>
           </Paper>
         )}
@@ -778,7 +1236,10 @@ const DashboardLider = () => {
                     onClick={() => setOpenNuevoReporte(true)}
                     size={isMobile ? "medium" : "medium"}
                     fullWidth={isMobile}
-                    sx={{ maxWidth: { xs: '100%', sm: 'auto' } }}
+                    sx={{ 
+                      maxWidth: { xs: '100%', sm: 'auto' },
+                      textTransform: 'none'
+                    }}
                   >
                     {isMobile ? 'Crear Reporte' : 'Crear Reporte Comunitario'}
                   </Button>
@@ -845,7 +1306,7 @@ const DashboardLider = () => {
                                 }
                               </Typography>
                               
-                              {/* InformaciÃ³n bÃ¡sica - Siempre visible */}
+                              {/* Información básica - Siempre visible */}
                               <Typography 
                                 variant="body2" 
                                 sx={{ 
@@ -877,7 +1338,7 @@ const DashboardLider = () => {
                                 {reporte.ciudadano_nombre} {reporte.ciudadano_apellido} - {reporte.ciudadano_telefono}
                               </Typography>
 
-                              {/* InformaciÃ³n expandible en desktop */}
+                              {/* Información expandible en desktop */}
                               <Collapse in={isMobile || expandedCards[reporte.id]}>
                                 {reporte.tecnico_nombre && (
                                   <Typography 
@@ -891,7 +1352,7 @@ const DashboardLider = () => {
                                     }}
                                   >
                                     <EngineeringIcon fontSize="small" /> 
-                                    TÃ©cnico: {reporte.tecnico_nombre} {reporte.tecnico_apellido}
+                                    Técnico: {reporte.tecnico_nombre} {reporte.tecnico_apellido}
                                   </Typography>
                                 )}
                               </Collapse>
@@ -929,7 +1390,7 @@ const DashboardLider = () => {
 
                           <Divider sx={{ mb: 2 }} />
                           
-                          {/* BOTONES CON FUNCIONALIDAD DE APROBACIÃ“N - RESPONSIVOS */}
+                          {/* BOTONES CON FUNCIONALIDAD DE APROBACIÓN - RESPONSIVOS */}
                           <Box 
                             display="flex" 
                             gap={1} 
@@ -941,7 +1402,10 @@ const DashboardLider = () => {
                               variant="outlined"
                               startIcon={<ViewIcon />}
                               fullWidth={isMobile}
-                              sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                              sx={{ 
+                                fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                textTransform: 'none'
+                              }}
                             >
                               {isMobile ? 'Ver Detalles' : 'Ver Detalles'}
                             </Button>
@@ -951,12 +1415,15 @@ const DashboardLider = () => {
                               variant="outlined"
                               startIcon={<PhoneIcon />}
                               fullWidth={isMobile}
-                              sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                              sx={{ 
+                                fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                textTransform: 'none'
+                              }}
                             >
                               {isMobile ? 'Contactar' : 'Contactar Ciudadano'}
                             </Button>
 
-                            {/* BOTONES PARA APROBAR/RECHAZAR - SOLO SI ESTÃ EN ESTADO "Nuevo" */}
+                            {/* BOTONES PARA APROBAR/RECHAZAR - SOLO SI ESTÁ EN ESTADO "Nuevo" */}
                             {reporte.estado_actual === 'Nuevo' && (
                               <Box 
                                 display="flex" 
@@ -972,7 +1439,10 @@ const DashboardLider = () => {
                                   onClick={() => handleAprobarReporteDirecto(reporte)}
                                   disabled={procesando}
                                   fullWidth={isMobile}
-                                  sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                                  sx={{ 
+                                    fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                    textTransform: 'none'
+                                  }}
                                 >
                                   Aprobar
                                 </Button>
@@ -985,7 +1455,10 @@ const DashboardLider = () => {
                                   onClick={() => handleRechazarReporteDirecto(reporte)}
                                   disabled={procesando}
                                   fullWidth={isMobile}
-                                  sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                                  sx={{ 
+                                    fontSize: { xs: '0.8rem', md: '0.875rem' },
+                                    textTransform: 'none'
+                                  }}
                                 >
                                   Rechazar
                                 </Button>
@@ -1014,7 +1487,7 @@ const DashboardLider = () => {
                     <Grid item xs={6}>
                       <Box textAlign="center">
                         <Typography variant="body2" color="textSecondary">
-                          Pendientes AprobaciÃ³n
+                          Pendientes Aprobación
                         </Typography>
                         <Typography variant="h4" color="warning.main">
                           {statsComunitarias.reportesPendientesAprobacion}
@@ -1047,7 +1520,7 @@ const DashboardLider = () => {
                     <Grid item xs={6}>
                       <Box textAlign="center">
                         <Typography variant="body2" color="textSecondary">
-                          PrÃ³xima ReuniÃ³n
+                          Próxima Reunión
                         </Typography>
                         <Typography variant="body1" fontWeight="bold">
                           {statsComunitarias.proximaReunion}
@@ -1057,10 +1530,10 @@ const DashboardLider = () => {
                   </Grid>
                 </Paper>
 
-                {/* Acciones RÃ¡pidas */}
+                {/* Acciones Rápidas */}
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom>
-                    Acciones RÃ¡pidas
+                    Acciones Rápidas
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                   
@@ -1072,6 +1545,7 @@ const DashboardLider = () => {
                       onClick={handleRefrescar}
                       disabled={loading}
                       size={isMobile ? "medium" : "medium"}
+                      sx={{ textTransform: 'none' }}
                     >
                       Actualizar Datos
                     </Button>
@@ -1081,8 +1555,9 @@ const DashboardLider = () => {
                       variant="outlined"
                       startIcon={<CampaignIcon />}
                       size={isMobile ? "medium" : "medium"}
+                      sx={{ textTransform: 'none' }}
                     >
-                      Convocar ReuniÃ³n
+                      Convocar Reunión
                     </Button>
                     
                     <Button
@@ -1090,6 +1565,7 @@ const DashboardLider = () => {
                       variant="outlined"
                       startIcon={<TrendingIcon />}
                       size={isMobile ? "medium" : "medium"}
+                      sx={{ textTransform: 'none' }}
                     >
                       Reporte Comunitario
                     </Button>
@@ -1099,8 +1575,9 @@ const DashboardLider = () => {
                       variant="outlined"
                       startIcon={<EngineeringIcon />}
                       size={isMobile ? "medium" : "medium"}
+                      sx={{ textTransform: 'none' }}
                     >
-                      Contactar TÃ©cnicos
+                      Contactar Técnicos
                     </Button>
                   </Stack>
                 </Paper>
@@ -1109,8 +1586,110 @@ const DashboardLider = () => {
           </Grid>
         )}
 
-        {/* Tab 1 - GestiÃ³n de Ciudadanos - RESPONSIVO */}
+        {/* Tab 1 - MAPA DE LA ZONA - NUEVO TAB RESPONSIVO */}
         {tabValue === 1 && (
+          <Box>
+            <Paper elevation={3} sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <MapIcon color="primary" />
+                {isMobile ? `Mapa ${user?.zona || 'Zona'}` : `Mapa Interactivo de ${user?.zona || 'mi Zona'}`}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                Visualiza la ubicación de todos los reportes en tu zona y su estado actual
+              </Typography>
+              <Divider sx={{ mb: 3 }} />
+
+              {/* Componente de Mapa */}
+              <MapaReportesZona 
+                reportes={reportesZona} 
+                onMarkerClick={handleMarkerClick}
+              />
+            </Paper>
+
+            {/* Resumen de reportes por ubicación */}
+            <Grid container spacing={{ xs: 2, md: 3 }}>
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                  <Typography variant="h6" gutterBottom>
+                    Distribución por Estado
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <Stack spacing={2}>
+                    {['Nuevo', 'Aprobado por Líder', 'En Proceso', 'Resuelto'].map(estado => {
+                      const count = reportesZona.filter(r => r.estado_actual === estado).length;
+                      return (
+                        <Box key={estado} display="flex" justifyContent="space-between" alignItems="center">
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <LocationIcon 
+                              sx={{ 
+                                fontSize: 16, 
+                                color: estado === 'Nuevo' ? '#ff9800' : 
+                                       estado === 'Aprobado por Líder' ? '#2196f3' :
+                                       estado === 'En Proceso' ? '#9c27b0' : '#4caf50'
+                              }} 
+                            />
+                            <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                              {estado}
+                            </Typography>
+                          </Box>
+                          <Chip 
+                            label={count} 
+                            size="small" 
+                            color={count > 0 ? "primary" : "default"}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
+                  <Typography variant="h6" gutterBottom>
+                    Zonas con Más Reportes
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  <Stack spacing={2}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                        Centro de la zona
+                      </Typography>
+                      <Chip label="5 reportes" size="small" color="warning" />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                        Sector norte
+                      </Typography>
+                      <Chip label="3 reportes" size="small" color="info" />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
+                        Sector sur
+                      </Typography>
+                      <Chip label="2 reportes" size="small" color="success" />
+                    </Box>
+                  </Stack>
+
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<FullscreenIcon />}
+                    sx={{ mt: 2, textTransform: 'none' }}
+                    size={isMobile ? "medium" : "medium"}
+                  >
+                    Ver Mapa en Pantalla Completa
+                  </Button>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+
+        {/* Tab 2 - Gestión de Ciudadanos - RESPONSIVO */}
+        {tabValue === 2 && (
           <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <PeopleIcon color="primary" /> 
@@ -1209,7 +1788,10 @@ const DashboardLider = () => {
                             startIcon={<VerifiedIcon />}
                             onClick={() => handleVerificarCiudadano(ciudadano.id)}
                             fullWidth={isMobile}
-                            sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                            sx={{ 
+                              fontSize: { xs: '0.8rem', md: '0.875rem' },
+                              textTransform: 'none'
+                            }}
                           >
                             Verificar
                           </Button>
@@ -1220,7 +1802,10 @@ const DashboardLider = () => {
                           variant="outlined"
                           startIcon={<PhoneIcon />}
                           fullWidth={isMobile}
-                          sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                          sx={{ 
+                            fontSize: { xs: '0.8rem', md: '0.875rem' },
+                            textTransform: 'none'
+                          }}
                         >
                           Contactar
                         </Button>
@@ -1233,19 +1818,19 @@ const DashboardLider = () => {
           </Paper>
         )}
 
-        {/* Tab 2 - CoordinaciÃ³n - RESPONSIVO */}
-        {tabValue === 2 && (
+        {/* Tab 3 - Coordinación - RESPONSIVO */}
+        {tabValue === 3 && (
           <Grid container spacing={{ xs: 2, md: 3 }}>
             <Grid item xs={12} md={6}>
               <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                 <Typography variant="h6" gutterBottom>
-                  CoordinaciÃ³n con TÃ©cnicos
+                  Coordinación con Técnicos
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
                 
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
-                    Facilita el acceso de tÃ©cnicos a tu zona para resolver reportes
+                    Facilita el acceso de técnicos a tu zona para resolver reportes
                   </Typography>
                 </Alert>
                 
@@ -1255,7 +1840,7 @@ const DashboardLider = () => {
                       <EngineeringIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
-                      primary="TÃ©cnico de EnergÃ­a ElÃ©ctrica"
+                      primary="Técnico de Energía Eléctrica"
                       secondary="2 reportes pendientes en tu zona"
                       primaryTypographyProps={{ 
                         fontSize: { xs: '0.9rem', md: '1rem' }
@@ -1267,7 +1852,10 @@ const DashboardLider = () => {
                     <Button 
                       size="small" 
                       variant="outlined"
-                      sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                      sx={{ 
+                        fontSize: { xs: '0.7rem', md: '0.875rem' },
+                        textTransform: 'none'
+                      }}
                     >
                       {isMobile ? 'Coordinar' : 'Coordinar Visita'}
                     </Button>
@@ -1278,7 +1866,7 @@ const DashboardLider = () => {
                       <EngineeringIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText
-                      primary="TÃ©cnico de Infraestructura"
+                      primary="Técnico de Infraestructura"
                       secondary="1 reporte urgente - bache en calle principal"
                       primaryTypographyProps={{ 
                         fontSize: { xs: '0.9rem', md: '1rem' }
@@ -1291,7 +1879,10 @@ const DashboardLider = () => {
                       size="small" 
                       variant="contained" 
                       color="warning"
-                      sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}
+                      sx={{ 
+                        fontSize: { xs: '0.7rem', md: '0.875rem' },
+                        textTransform: 'none'
+                      }}
                     >
                       {isMobile ? 'Urgente' : 'Coordinar Urgente'}
                     </Button>
@@ -1313,8 +1904,8 @@ const DashboardLider = () => {
                       <EventIcon color="success" />
                     </ListItemIcon>
                     <ListItemText
-                      primary="ReuniÃ³n Mensual COCODE"
-                      secondary="PrÃ³xima: 15 de Enero, 6:00 PM"
+                      primary="Reunión Mensual COCODE"
+                      secondary="Próxima: 15 de Enero, 6:00 PM"
                       primaryTypographyProps={{ 
                         fontSize: { xs: '0.9rem', md: '1rem' }
                       }}
@@ -1329,8 +1920,8 @@ const DashboardLider = () => {
                       <CampaignIcon color="warning" />
                     </ListItemIcon>
                     <ListItemText
-                      primary="CampaÃ±a de Limpieza"
-                      secondary="SÃ¡bado 20 de Enero, 8:00 AM"
+                      primary="Campaña de Limpieza"
+                      secondary="Sábado 20 de Enero, 8:00 AM"
                       primaryTypographyProps={{ 
                         fontSize: { xs: '0.9rem', md: '1rem' }
                       }}
@@ -1346,7 +1937,7 @@ const DashboardLider = () => {
                   variant="contained"
                   color="primary"
                   startIcon={<AddIcon />}
-                  sx={{ mt: 2 }}
+                  sx={{ mt: 2, textTransform: 'none' }}
                   size={isMobile ? "medium" : "medium"}
                 >
                   {isMobile ? 'Nueva Actividad' : 'Planificar Nueva Actividad'}
@@ -1356,8 +1947,8 @@ const DashboardLider = () => {
           </Grid>
         )}
 
-        {/* Tab 3 - Reportes pendientes de aprobaciÃ³n */}
-        {tabValue === 3 && (
+        {/* Tab 4 - Reportes pendientes de aprobación */}
+        {tabValue === 4 && (
           <ReportesPendientesAprobacion />
         )}
 
@@ -1377,15 +1968,15 @@ const DashboardLider = () => {
             textAlign="center"
             sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
           >
-            <strong>Permisos de LÃ­der COCODE:</strong> Gestionar ciudadanos de {user?.zona || 'tu zona'} | 
+            <strong>Permisos de Líder COCODE:</strong> Gestionar ciudadanos de {user?.zona || 'tu zona'} | 
             Ver y validar reportes comunitarios | Crear reportes en nombre de ciudadanos | 
-            Coordinar con tÃ©cnicos | Organizar actividades comunitarias |
-            <strong> NO puedes:</strong> Ver reportes de otras zonas | Asignar tÃ©cnicos | Cambiar configuraciones del sistema
+            Coordinar con técnicos | Organizar actividades comunitarias |
+            <strong> NO puedes:</strong> Ver reportes de otras zonas | Asignar técnicos | Cambiar configuraciones del sistema
           </Typography>
         </Box>
       </Container>
 
-      {/* FAB para crear reporte en mÃ³vil */}
+      {/* FAB para crear reporte en móvil */}
       {isMobile && (
         <Fab
           color="primary"
@@ -1433,18 +2024,18 @@ const DashboardLider = () => {
               
               <TextField
                 fullWidth
-                label="Comentario del LÃ­der (opcional)"
+                label="Comentario del Líder (opcional)"
                 multiline
                 rows={isMobile ? 4 : 3}
                 value={comentarioLider}
                 onChange={(e) => setComentarioLider(e.target.value)}
-                placeholder="Agregar comentarios sobre la aprobaciÃ³n..."
+                placeholder="Agregar comentarios sobre la aprobación..."
                 sx={{ mt: 2 }}
               />
               
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
-                  Al aprobar, el reporte serÃ¡ enviado al administrador para asignaciÃ³n a tÃ©cnico.
+                  Al aprobar, el reporte será enviado al administrador para asignación a técnico.
                 </Typography>
               </Alert>
             </Box>
@@ -1455,6 +2046,7 @@ const DashboardLider = () => {
             <Button 
               onClick={() => setModalAprobar(false)}
               disabled={procesando}
+              sx={{ textTransform: 'none' }}
             >
               Cancelar
             </Button>
@@ -1467,6 +2059,7 @@ const DashboardLider = () => {
             startIcon={procesando ? <CircularProgress size={16} /> : <CheckCircle />}
             fullWidth={isMobile}
             size={isMobile ? "large" : "medium"}
+            sx={{ textTransform: 'none' }}
           >
             {procesando ? 'Aprobando...' : 'Aprobar Reporte'}
           </Button>
@@ -1530,7 +2123,7 @@ const DashboardLider = () => {
               
               <Alert severity="warning" sx={{ mt: 2 }}>
                 <Typography variant="body2" sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>
-                  Al rechazar, el ciudadano serÃ¡ notificado del motivo.
+                  Al rechazar, el ciudadano será notificado del motivo.
                 </Typography>
               </Alert>
             </Box>
@@ -1541,6 +2134,7 @@ const DashboardLider = () => {
             <Button 
               onClick={() => setModalRechazar(false)}
               disabled={procesando}
+              sx={{ textTransform: 'none' }}
             >
               Cancelar
             </Button>
@@ -1553,6 +2147,7 @@ const DashboardLider = () => {
             startIcon={procesando ? <CircularProgress size={16} /> : <Cancel />}
             fullWidth={isMobile}
             size={isMobile ? "large" : "medium"}
+            sx={{ textTransform: 'none' }}
           >
             {procesando ? 'Rechazando...' : 'Rechazar Reporte'}
           </Button>
@@ -1581,7 +2176,7 @@ const DashboardLider = () => {
           <Stack spacing={{ xs: 2, md: 3 }} sx={{ mt: 1 }}>
             <TextField
               fullWidth
-              label="TÃ­tulo del Problema"
+              label="Título del Problema"
               variant="outlined"
               placeholder="Ej: Falta de alumbrado en parque central"
               size={isMobile ? "medium" : "medium"}
@@ -1590,30 +2185,33 @@ const DashboardLider = () => {
               fullWidth
               multiline
               rows={isMobile ? 3 : 4}
-              label="DescripciÃ³n Detallada"
+              label="Descripción Detallada"
               variant="outlined"
               placeholder="Describe el problema detalladamente..."
               size={isMobile ? "medium" : "medium"}
             />
             <TextField
               fullWidth
-              label="UbicaciÃ³n/DirecciÃ³n"
+              label="Ubicación/Dirección"
               variant="outlined"
-              placeholder="DirecciÃ³n exacta del problema"
+              placeholder="Dirección exacta del problema"
               size={isMobile ? "medium" : "medium"}
             />
             <TextField
               fullWidth
               label="Ciudadano Reportante (opcional)"
               variant="outlined"
-              placeholder="Nombre del ciudadano que reportÃ³"
+              placeholder="Nombre del ciudadano que reportó"
               size={isMobile ? "medium" : "medium"}
             />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
           {!isMobile && (
-            <Button onClick={() => setOpenNuevoReporte(false)}>
+            <Button 
+              onClick={() => setOpenNuevoReporte(false)}
+              sx={{ textTransform: 'none' }}
+            >
               Cancelar
             </Button>
           )}
@@ -1622,6 +2220,7 @@ const DashboardLider = () => {
             onClick={() => setOpenNuevoReporte(false)}
             fullWidth={isMobile}
             size={isMobile ? "large" : "medium"}
+            sx={{ textTransform: 'none' }}
           >
             Crear Reporte
           </Button>
