@@ -12,7 +12,6 @@ const getZonas = async (req, res) => {
         z.descripcion,
         z.poblacion_estimada,
         z.area_km2,
-        z.coordenadas_centro,
         z.estado,
         z.fecha_ingreso,
         z.usuario_ingreso,
@@ -21,12 +20,9 @@ const getZonas = async (req, res) => {
         -- Información del COCODE principal
         c.id as cocode_id,
         c.nombre as cocode_nombre,
-        c.es_principal as cocode_es_principal,
-        c.direccion_oficina as cocode_direccion,
+        c.direccion as cocode_direccion,
         c.telefono as cocode_telefono,
         c.poblacion_estimada as cocode_poblacion,
-        c.latitud as cocode_latitud,
-        c.longitud as cocode_longitud,
         c.estado as cocode_estado,
         -- Contar sub-COCODE
         (SELECT COUNT(*) FROM subcocode sc WHERE sc.id_cocode_principal = c.id AND sc.estado = TRUE) as total_subcocode,
@@ -66,11 +62,9 @@ const getZonaById = async (req, res) => {
         z.*,
         c.id as cocode_id,
         c.nombre as cocode_nombre,
-        c.direccion_oficina as cocode_direccion,
+        c.direccion as cocode_direccion,
         c.telefono as cocode_telefono,
-        c.poblacion_estimada as cocode_poblacion,
-        c.latitud as cocode_latitud,
-        c.longitud as cocode_longitud
+        c.poblacion_estimada as cocode_poblacion
       FROM zonas z
       LEFT JOIN cocode c ON c.id_zona = z.id AND c.estado = TRUE
       WHERE z.id = $1 AND z.estado = TRUE
@@ -120,11 +114,9 @@ const getZonaById = async (req, res) => {
 // Crear nueva zona
 const createZona = async (req, res) => {
   const { 
-    nombre, numero_zona, descripcion, poblacion_estimada, 
-    area_km2, coordenadas_centro,
+    nombre, numero_zona, descripcion, poblacion_estimada, area_km2,
     // Datos del COCODE principal
-    cocode_nombre, cocode_direccion, cocode_telefono,
-    cocode_poblacion, cocode_latitud, cocode_longitud
+    cocode_nombre, cocode_direccion, cocode_telefono, cocode_poblacion
   } = req.body;
 
   try {
@@ -162,15 +154,14 @@ const createZona = async (req, res) => {
     const zonaInsertQuery = `
       INSERT INTO zonas (
         nombre, numero_zona, descripcion, poblacion_estimada, 
-        area_km2, coordenadas_centro, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        area_km2, usuario_ingreso
+      ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, nombre, numero_zona
     `;
 
     const zonaValues = [
       nombre, numero_zona, descripcion, poblacion_estimada || null,
-      area_km2 || null, coordenadas_centro || null,
-      req.user?.correo || 'admin'
+      area_km2 || null, req.user?.correo || 'admin'
     ];
 
     const zonaResult = await pool.query(zonaInsertQuery, zonaValues);
@@ -181,16 +172,14 @@ const createZona = async (req, res) => {
     
     const cocodeInsertQuery = `
       INSERT INTO cocode (
-        id_zona, nombre, es_principal, direccion_oficina, telefono,
-        poblacion_estimada, latitud, longitud, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        id_zona, nombre, direccion, telefono, poblacion_estimada, usuario_ingreso
+      ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, nombre
     `;
 
     const cocodeValues = [
-      zonaId, cocodeNombre, true, cocode_direccion || null, cocode_telefono || null,
+      zonaId, cocodeNombre, cocode_direccion || null, cocode_telefono || null,
       cocode_poblacion || poblacion_estimada || null, 
-      cocode_latitud || null, cocode_longitud || null,
       req.user?.correo || 'admin'
     ];
 
@@ -225,11 +214,9 @@ const createZona = async (req, res) => {
 const updateZona = async (req, res) => {
   const { id } = req.params;
   const { 
-    nombre, numero_zona, descripcion, poblacion_estimada, 
-    area_km2, coordenadas_centro,
+    nombre, numero_zona, descripcion, poblacion_estimada, area_km2,
     // Datos del COCODE principal para actualizar
-    cocode_nombre, cocode_direccion, cocode_telefono,
-    cocode_poblacion, cocode_latitud, cocode_longitud
+    cocode_nombre, cocode_direccion, cocode_telefono, cocode_poblacion
   } = req.body;
 
   try {
@@ -271,18 +258,15 @@ const updateZona = async (req, res) => {
         descripcion = $3,
         poblacion_estimada = $4,
         area_km2 = $5,
-        coordenadas_centro = $6,
         fecha_modifica = NOW(),
-        usuario_modifica = $7
-      WHERE id = $8 AND estado = TRUE
+        usuario_modifica = $6
+      WHERE id = $7 AND estado = TRUE
       RETURNING id, nombre, numero_zona
     `;
 
     const zonaValues = [
       nombre, numero_zona, descripcion, poblacion_estimada || null,
-      area_km2 || null, coordenadas_centro || null,
-      req.user?.correo || 'admin',
-      id
+      area_km2 || null, req.user?.correo || 'admin', id
     ];
 
     const zonaResult = await pool.query(zonaUpdateQuery, zonaValues);
@@ -299,22 +283,18 @@ const updateZona = async (req, res) => {
       const cocodeUpdateQuery = `
         UPDATE cocode SET
           nombre = $1,
-          direccion_oficina = $2,
+          direccion = $2,
           telefono = $3,
           poblacion_estimada = $4,
-          latitud = $5,
-          longitud = $6,
           fecha_modifica = NOW(),
-          usuario_modifica = $7
-        WHERE id_zona = $8 AND es_principal = TRUE AND estado = TRUE
+          usuario_modifica = $5
+        WHERE id_zona = $6 AND estado = TRUE
         RETURNING id, nombre
       `;
 
       const cocodeValues = [
         cocode_nombre, cocode_direccion || null, cocode_telefono || null,
-        cocode_poblacion || null, cocode_latitud || null, cocode_longitud || null,
-        req.user?.correo || 'admin',
-        id
+        cocode_poblacion || null, req.user?.correo || 'admin', id
       ];
 
       await pool.query(cocodeUpdateQuery, cocodeValues);
@@ -440,8 +420,7 @@ const deleteZona = async (req, res) => {
 const createSubCocode = async (req, res) => {
   const { zonaId } = req.params;
   const { 
-    nombre, sector, aldea_canton, direccion_oficina, telefono,
-    poblacion_estimada, latitud, longitud, area_cobertura
+    nombre, sector, direccion, poblacion_estimada
   } = req.body;
 
   try {
@@ -456,7 +435,7 @@ const createSubCocode = async (req, res) => {
     }
 
     // Obtener COCODE principal de la zona
-    const cocodeQuery = 'SELECT id FROM cocode WHERE id_zona = $1 AND es_principal = TRUE AND estado = TRUE';
+    const cocodeQuery = 'SELECT id FROM cocode WHERE id_zona = $1 AND estado = TRUE';
     const cocodeResult = await pool.query(cocodeQuery, [zonaId]);
     
     if (cocodeResult.rows.length === 0) {
@@ -477,16 +456,13 @@ const createSubCocode = async (req, res) => {
     // Insertar sub-COCODE
     const insertQuery = `
       INSERT INTO subcocode (
-        id_cocode_principal, nombre, sector, aldea_canton, direccion_oficina,
-        telefono, poblacion_estimada, latitud, longitud, area_cobertura, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        id_cocode_principal, nombre, sector, direccion, poblacion_estimada, usuario_ingreso
+      ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, nombre, sector
     `;
 
     const values = [
-      cocodeId, nombre, sector, aldea_canton || null, direccion_oficina || null,
-      telefono || null, poblacion_estimada || null, latitud || null, 
-      longitud || null, area_cobertura || null,
+      cocodeId, nombre, sector, direccion || null, poblacion_estimada || null,
       req.user?.correo || 'admin'
     ];
 

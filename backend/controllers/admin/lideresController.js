@@ -14,10 +14,10 @@ const getLideres = async (req, res) => {
         u.telefono,
         u.dpi,
         u.tipo_lider,
-        u.cargo,
-        u.fecha_eleccion,
-        u.periodo_inicio,
-        u.periodo_fin,
+        u.tipo_lider as cargo,  -- ✅ CORREGIDO: usar tipo_lider como cargo
+        u.fecha_ingreso as fecha_eleccion,  -- ✅ CORREGIDO: usar fecha_ingreso
+        u.fecha_ingreso as periodo_inicio,   -- ✅ CORREGIDO: usar fecha_ingreso
+        NULL as periodo_fin,  -- ✅ CORREGIDO: columna no existe, usar NULL
         u.ultimo_acceso,
         u.estado,
         u.fecha_ingreso,
@@ -96,21 +96,23 @@ const createLider = async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
 
-    // Insertar nuevo líder
+    // ✅ CORREGIDO: Insertar solo columnas que existen
     const insertQuery = `
       INSERT INTO usuarios (
         nombre, apellido, correo, contrasena, telefono, dpi,
-        tipo_lider, cargo, fecha_eleccion, periodo_inicio, periodo_fin,
-        id_cocode_principal, id_subcocode, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      RETURNING id, nombre, apellido, correo, tipo_lider, cargo
+        tipo_lider, id_cocode_principal, id_subcocode, 
+        es_lider_principal, puede_aprobar_reportes, usuario_ingreso
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id, nombre, apellido, correo, tipo_lider
     `;
 
     const values = [
       nombre, apellido, correo, hashedPassword, telefono, dpi,
-      tipo_lider, cargo, fecha_eleccion, periodo_inicio, periodo_fin,
+      tipo_lider, 
       tipo_lider === 'principal' ? id_cocode_principal : null,
       tipo_lider === 'subcocode' ? id_subcocode : null,
+      tipo_lider === 'principal', // es_lider_principal
+      true, // puede_aprobar_reportes
       req.user?.correo || 'admin'
     ];
 
@@ -164,7 +166,7 @@ const updateLider = async (req, res) => {
       });
     }
 
-    // Actualizar líder
+    // ✅ CORREGIDO: Actualizar solo columnas que existen
     const updateQuery = `
       UPDATE usuarios SET
         nombre = $1,
@@ -173,23 +175,21 @@ const updateLider = async (req, res) => {
         telefono = $4,
         dpi = $5,
         tipo_lider = $6,
-        cargo = $7,
-        fecha_eleccion = $8,
-        periodo_inicio = $9,
-        periodo_fin = $10,
-        id_cocode_principal = $11,
-        id_subcocode = $12,
+        id_cocode_principal = $7,
+        id_subcocode = $8,
+        es_lider_principal = $9,
         fecha_modifica = NOW(),
-        usuario_modifica = $13
-      WHERE id = $14 AND estado = TRUE
-      RETURNING id, nombre, apellido, correo, tipo_lider, cargo
+        usuario_modifica = $10
+      WHERE id = $11 AND estado = TRUE
+      RETURNING id, nombre, apellido, correo, tipo_lider
     `;
 
     const values = [
       nombre, apellido, correo, telefono, dpi,
-      tipo_lider, cargo, fecha_eleccion, periodo_inicio, periodo_fin,
+      tipo_lider,
       tipo_lider === 'principal' ? id_cocode_principal : null,
       tipo_lider === 'subcocode' ? id_subcocode : null,
+      tipo_lider === 'principal', // es_lider_principal
       req.user?.correo || 'admin',
       id
     ];
@@ -275,7 +275,7 @@ const deleteLider = async (req, res) => {
     const reportesQuery = `
       SELECT COUNT(*) as total 
       FROM reportes 
-      WHERE (id_usuario = $1 OR id_lider_coordinador = $1) 
+      WHERE id_usuario = $1 
       AND estado = TRUE 
       AND id_estado NOT IN (
         SELECT id FROM estados_reporte WHERE es_final = TRUE
@@ -328,12 +328,12 @@ const deleteLider = async (req, res) => {
 // Obtener datos para selects (COCODE, Sub-COCODE, etc.)
 const getDatosSelect = async (req, res) => {
   try {
-    // Obtener COCODE principales
+    // ✅ CORREGIDO: Quitar c.es_principal que no existe
     const cocodeQuery = `
       SELECT c.id, c.nombre, z.nombre as zona_nombre
       FROM cocode c
       LEFT JOIN zonas z ON c.id_zona = z.id
-      WHERE c.estado = TRUE AND c.es_principal = TRUE
+      WHERE c.estado = TRUE
       ORDER BY c.nombre
     `;
     const cocodeResult = await pool.query(cocodeQuery);
