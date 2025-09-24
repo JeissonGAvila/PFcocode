@@ -1,4 +1,4 @@
-// frontend/src/services/ciudadano/ciudadanoService.js - 100% FIREBASE
+// frontend/src/services/ciudadano/ciudadanoService.js - 100% FIREBASE + COMENTARIOS UNIVERSALES
 import { apiService } from '../api.js';
 
 const ciudadanoService = {
@@ -97,7 +97,7 @@ const ciudadanoService = {
     }
   },
 
-  // Resto de funciones igual
+  // Obtener mis reportes
   getMisReportes: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes');
@@ -107,9 +107,10 @@ const ciudadanoService = {
     }
   },
 
+  // 💬 AGREGAR COMENTARIO - Sistema universal actualizado
   agregarComentario: async (reporteId, comentario) => {
     try {
-      const response = await apiService.post(`/api/ciudadano/reportes/${reporteId}/comentario`, {
+      const response = await apiService.post(`/api/reportes/${reporteId}/comentarios`, {
         comentario
       });
       return response;
@@ -118,6 +119,17 @@ const ciudadanoService = {
     }
   },
 
+  // 📖 OBTENER COMENTARIOS - Nueva función universal
+  obtenerComentarios: async (reporteId) => {
+    try {
+      const response = await apiService.get(`/api/reportes/${reporteId}/comentarios`);
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al obtener comentarios');
+    }
+  },
+
+  // Obtener tipos de problema
   getTiposProblema: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes/tipos-problema');
@@ -127,6 +139,7 @@ const ciudadanoService = {
     }
   },
 
+  // Obtener datos del formulario
   getDatosFormulario: async () => {
     try {
       const response = await apiService.get('/api/ciudadano/reportes/datos');
@@ -137,7 +150,7 @@ const ciudadanoService = {
   }
 };
 
-// Geo utils y estados igual que antes
+// Geo utils
 export const geoUtils = {
   obtenerUbicacionGPS: () => {
     return new Promise((resolve, reject) => {
@@ -193,6 +206,7 @@ export const geoUtils = {
   }
 };
 
+// Estados de reporte para ciudadano
 export const estadosReporteCiudadano = {
   'Nuevo': { color: 'info', descripcion: 'Esperando revisión del líder', progreso: 10 },
   'Aprobado por Líder': { color: 'success', descripcion: 'Aprobado por líder', progreso: 30 },
@@ -201,6 +215,7 @@ export const estadosReporteCiudadano = {
   'Resuelto': { color: 'success', descripcion: 'Problema resuelto', progreso: 100 }
 };
 
+// Prioridades de reporte
 export const prioridadesReporte = [
   { value: 'Baja', label: 'Baja - No urgente', color: 'success' },
   { value: 'Media', label: 'Media - Normal', color: 'warning' },

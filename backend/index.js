@@ -212,6 +212,15 @@ try {
   console.log('❌ Stack trace completo:', error.stack);
 }
 
+// 13. COMENTARIOS - NUEVO SISTEMA UNIVERSAL
+try {
+  const comentariosRoutes = require('./routes/comentariosRoute');
+  app.use('/api/reportes', comentariosRoutes);
+  console.log('✅ Comentarios routes cargadas - SISTEMA UNIVERSAL DE COMENTARIOS');
+} catch (error) {
+  console.log('❌ Error en comentarios:', error.message);
+}
+
 // Manejo de errores
 app.use((error, req, res, next) => {
   console.error('💥 ERROR:', error);
@@ -242,8 +251,9 @@ app.listen(PORT, () => {
   console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
   console.log('   🔧 - /api/tecnico/reportes/* ← PANEL TÉCNICO CORREGIDO');
   console.log('   📍 - /api/ciudadano/reportes/* ← PANEL CIUDADANO CON GPS + FIREBASE');
+  console.log('   💬 - /api/reportes/*/comentarios ← SISTEMA DE COMENTARIOS UNIVERSAL');
   console.log('   📁 - /uploads/* ← SERVICIO DE ARCHIVOS ESTÁTICOS (LEGACY)');
   console.log('   🐛 - /api/debug/files ← DEBUG DE ARCHIVOS LOCALES');
   console.log('   🔥 - /api/debug/firebase ← DEBUG DE FIREBASE');
-  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS + FIREBASE + ARCHIVOS');
+  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS + FIREBASE + ARCHIVOS + COMENTARIOS');
 });

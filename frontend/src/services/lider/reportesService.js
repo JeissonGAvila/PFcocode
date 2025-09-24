@@ -1,4 +1,4 @@
-// frontend/src/services/lider/reportesService.js - ACTUALIZADO
+// frontend/src/services/lider/reportesService.js - ACTUALIZADO CON COMENTARIOS UNIVERSALES
 import { apiService, handleApiError } from '../api.js';
 
 export const liderReportesService = {
@@ -89,6 +89,28 @@ export const liderReportesService = {
         aprobado: aprobado,
         comentario_validacion: comentarioValidacion
       });
+      return response;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  // 💬 AGREGAR COMENTARIO - Sistema universal
+  agregarComentario: async (reporteId, comentario) => {
+    try {
+      const response = await apiService.post(`/api/reportes/${reporteId}/comentarios`, {
+        comentario
+      });
+      return response;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
+  // 📖 OBTENER COMENTARIOS - Sistema universal
+  obtenerComentarios: async (reporteId) => {
+    try {
+      const response = await apiService.get(`/api/reportes/${reporteId}/comentarios`);
       return response;
     } catch (error) {
       throw new Error(handleApiError(error));

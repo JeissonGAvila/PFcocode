@@ -1,4 +1,4 @@
-// frontend/src/services/admin/reportesService.js - ACTUALIZADO CON DETALLES
+// frontend/src/services/admin/reportesService.js - ACTUALIZADO CON COMENTARIOS UNIVERSALES
 import { apiService } from '../api.js';
 
 const reportesService = {
@@ -87,6 +87,29 @@ const reportesService = {
       return response;
     } catch (error) {
       throw new Error(error.message || 'Error al cambiar prioridad');
+    }
+  },
+
+  // 💬 AGREGAR COMENTARIO - Sistema universal
+  agregarComentario: async (reporteId, comentario, esInterno = false) => {
+    try {
+      const response = await apiService.post(`/api/reportes/${reporteId}/comentarios`, {
+        comentario,
+        es_interno: esInterno // Admin puede hacer comentarios internos
+      });
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al agregar comentario');
+    }
+  },
+
+  // 📖 OBTENER COMENTARIOS - Sistema universal (admin ve todos, incluidos internos)
+  obtenerComentarios: async (reporteId) => {
+    try {
+      const response = await apiService.get(`/api/reportes/${reporteId}/comentarios`);
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al obtener comentarios');
     }
   },
 

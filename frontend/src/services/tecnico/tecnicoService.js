@@ -1,4 +1,4 @@
-// frontend/src/services/tecnico/tecnicoService.js - ACTUALIZADO
+// frontend/src/services/tecnico/tecnicoService.js - ACTUALIZADO CON COMENTARIOS UNIVERSALES
 import { apiService } from '../api.js';
 
 const tecnicoService = {
@@ -69,6 +69,28 @@ const tecnicoService = {
       return response;
     } catch (error) {
       throw new Error(error.message || 'Error al agregar seguimiento');
+    }
+  },
+
+  // 💬 AGREGAR COMENTARIO - Sistema universal
+  agregarComentario: async (reporteId, comentario) => {
+    try {
+      const response = await apiService.post(`/api/reportes/${reporteId}/comentarios`, {
+        comentario
+      });
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al agregar comentario');
+    }
+  },
+
+  // 📖 OBTENER COMENTARIOS - Sistema universal
+  obtenerComentarios: async (reporteId) => {
+    try {
+      const response = await apiService.get(`/api/reportes/${reporteId}/comentarios`);
+      return response;
+    } catch (error) {
+      throw new Error(error.message || 'Error al obtener comentarios');
     }
   },
 
