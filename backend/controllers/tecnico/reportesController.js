@@ -1,4 +1,4 @@
-// backend/controllers/tecnico/reportesController.js - ACTUALIZADO CON FOTOS Y UBICACIÓN
+// backend/controllers/tecnico/reportesController.js - VERSIÓN COMPLETA CON COMENTARIOS DINÁMICOS
 const pool = require('../../models/db');
 
 // Obtener reportes asignados al técnico CON FOTOS Y UBICACIÓN (SOLO de su departamento)
@@ -72,7 +72,7 @@ const getMisReportes = async (req, res) => {
         z.nombre as zona,
         z.numero_zona,
         
-        -- NUEVO: Fotos del reporte (ARRAY de fotos del ciudadano)
+        -- Fotos del reporte (ARRAY de fotos del ciudadano)
         (
           SELECT JSON_AGG(
             JSON_BUILD_OBJECT(
@@ -92,7 +92,7 @@ const getMisReportes = async (req, res) => {
             AND ar.es_evidencia_inicial = TRUE
         ) as fotos,
         
-        -- NUEVO: Contador de fotos
+        -- Contador de fotos
         (
           SELECT COUNT(*) 
           FROM archivos_reporte ar 
@@ -100,6 +100,15 @@ const getMisReportes = async (req, res) => {
             AND ar.estado = TRUE
             AND ar.es_evidencia_inicial = TRUE
         ) as total_fotos,
+        
+        -- NUEVO: Contador de comentarios públicos
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count,
         
         -- Calcular días transcurridos desde asignación
         EXTRACT(DAYS FROM (CURRENT_TIMESTAMP - r.fecha_asignacion)) as dias_asignado
@@ -147,8 +156,10 @@ const getMisReportes = async (req, res) => {
         en_proceso: reportesProcesados.filter(r => r.estado === 'En Proceso').length,
         pendiente_materiales: reportesProcesados.filter(r => r.estado === 'Pendiente Materiales').length,
         con_fotos: reportesProcesados.filter(r => r.tiene_fotos).length,
-        con_ubicacion: reportesProcesados.filter(r => r.tiene_ubicacion_gps).length
-      }
+        con_ubicacion: reportesProcesados.filter(r => r.tiene_ubicacion_gps).length,
+        con_comentarios: reportesProcesados.filter(r => r.comentarios_count > 0).length
+      },
+      comentarios_enabled: true
     });
   } catch (error) {
     console.error('Error al obtener reportes del técnico:', error);
@@ -238,7 +249,16 @@ const getReporteDetalle = async (req, res) => {
           FROM archivos_reporte ar 
           WHERE ar.id_reporte = r.id 
             AND ar.estado = TRUE
-        ) as fotos
+        ) as fotos,
+        
+        -- NUEVO: Contador de comentarios
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count
         
       FROM reportes r
       INNER JOIN estados_reporte er ON r.id_estado = er.id
@@ -285,17 +305,17 @@ const getReporteDetalle = async (req, res) => {
   }
 };
 
-// Cambiar estado de reporte (SOLO estados permitidos para técnico) - SIN CAMBIOS
+// Cambiar estado de reporte CON COMENTARIO DINÁMICO - ACTUALIZADO
 const cambiarEstadoReporte = async (req, res) => {
   const { id } = req.params;
-  const { nuevo_estado, comentario } = req.body;
+  const { nuevo_estado, comentario_progreso } = req.body; // NUEVO: Campo de comentario
   const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
   try {
     // Verificar que el reporte está asignado a este técnico
     const verificarQuery = `
       SELECT r.*, er.nombre as estado_actual, tp.departamento_responsable,
-             a.departamento as tecnico_departamento
+             a.departamento as tecnico_departamento, a.nombre as tecnico_nombre, a.apellido as tecnico_apellido
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
@@ -357,26 +377,32 @@ const cambiarEstadoReporte = async (req, res) => {
       id
     ]);
     
-    // Registrar en seguimiento si hay comentario
-    if (comentario) {
-      const seguimientoQuery = `
-        INSERT INTO seguimiento_reportes (
-          id_reporte, id_administrador, tipo_usuario_seguimiento,
-          estado_anterior, estado_nuevo, comentario, 
-          tipo_seguimiento, usuario_ingreso
-        ) VALUES ($1, $2, 'tecnico', $3, $4, $5, $6, $7)
-      `;
-      
-      const tipoSeguimiento = nuevo_estado === 'Resuelto' ? 'resolucion' : 'actualizacion';
-      
-      await pool.query(seguimientoQuery, [
-        id, tecnicoId, 
-        (await pool.query('SELECT id FROM estados_reporte WHERE nombre = $1', [reporte.estado_actual])).rows[0].id,
-        nuevoEstadoId, 
-        comentario, 
-        tipoSeguimiento,
+    // NUEVO: Crear comentario dinámico automáticamente usando sistema universal
+    const comentarioFinal = comentario_progreso || 
+      `Estado cambiado a "${nuevo_estado}" por el técnico ${reporte.tecnico_nombre} ${reporte.tecnico_apellido}.`;
+
+    // Obtener emoji según el estado
+    const emojiEstado = {
+      'En Proceso': '🔧',
+      'Pendiente Materiales': '⏳',
+      'Resuelto': '✅'
+    };
+
+    try {
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_administrador, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'tecnico', $3, $4, FALSE, $5)
+      `, [
+        id,
+        tecnicoId,
+        `${reporte.tecnico_nombre} ${reporte.tecnico_apellido}`,
+        `${emojiEstado[nuevo_estado] || '🔧'} ${nuevo_estado.toUpperCase()}: ${comentarioFinal}`,
         `tecnico_${tecnicoId}`
       ]);
+    } catch (comentarioError) {
+      console.warn('No se pudo crear comentario de cambio de estado:', comentarioError.message);
     }
     
     res.json({
@@ -384,7 +410,8 @@ const cambiarEstadoReporte = async (req, res) => {
       message: `Estado cambiado exitosamente a "${nuevo_estado}"`,
       reporte: updateResult.rows[0],
       estado_anterior: reporte.estado_actual,
-      estado_nuevo: nuevo_estado
+      estado_nuevo: nuevo_estado,
+      comentario_agregado: true
     });
     
   } catch (error) {
@@ -395,7 +422,7 @@ const cambiarEstadoReporte = async (req, res) => {
   }
 };
 
-// Agregar seguimiento/comentario a reporte - SIN CAMBIOS
+// Agregar seguimiento/comentario a reporte CON COMENTARIOS DINÁMICOS - ACTUALIZADO
 const agregarSeguimiento = async (req, res) => {
   const { id } = req.params;
   const { comentario, tiempo_invertido_horas, accion_tomada } = req.body;
@@ -404,9 +431,10 @@ const agregarSeguimiento = async (req, res) => {
   try {
     // Verificar que el reporte está asignado a este técnico
     const verificarQuery = `
-      SELECT r.*, er.nombre as estado_actual
+      SELECT r.*, er.nombre as estado_actual, a.nombre as tecnico_nombre, a.apellido as tecnico_apellido
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
+      JOIN administradores a ON r.id_administrador_asignado = a.id
       WHERE r.id = $1 AND r.id_administrador_asignado = $2 AND r.estado = TRUE
     `;
     
@@ -417,26 +445,40 @@ const agregarSeguimiento = async (req, res) => {
         error: 'Reporte no encontrado o no asignado a este técnico' 
       });
     }
+
+    const reporte = verificarResult.rows[0];
     
-    // Insertar seguimiento
-    const seguimientoQuery = `
-      INSERT INTO seguimiento_reportes (
-        id_reporte, id_administrador, tipo_usuario_seguimiento,
-        comentario, accion_tomada, tiempo_invertido_horas,
-        tipo_seguimiento, usuario_ingreso
-      ) VALUES ($1, $2, 'tecnico', $3, $4, $5, 'actualizacion', $6)
-      RETURNING *
-    `;
-    
-    const seguimientoResult = await pool.query(seguimientoQuery, [
-      id, tecnicoId, comentario, accion_tomada, 
-      tiempo_invertido_horas, `tecnico_${tecnicoId}`
-    ]);
+    // NUEVO: Crear comentario en sistema universal en lugar de seguimiento_reportes
+    if (comentario && comentario.trim()) {
+      let comentarioCompleto = comentario.trim();
+      
+      // Agregar información adicional si se proporciona
+      if (accion_tomada) {
+        comentarioCompleto = `${accion_tomada}: ${comentarioCompleto}`;
+      }
+      
+      if (tiempo_invertido_horas) {
+        comentarioCompleto += ` (Tiempo invertido: ${tiempo_invertido_horas}h)`;
+      }
+
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_administrador, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'tecnico', $3, $4, FALSE, $5)
+      `, [
+        id,
+        tecnicoId,
+        `${reporte.tecnico_nombre} ${reporte.tecnico_apellido}`,
+        `🔧 PROGRESO: ${comentarioCompleto}`,
+        `tecnico_${tecnicoId}`
+      ]);
+    }
     
     res.json({
       success: true,
       message: 'Seguimiento agregado exitosamente',
-      seguimiento: seguimientoResult.rows[0]
+      comentario_agregado: !!(comentario && comentario.trim())
     });
     
   } catch (error) {
@@ -447,7 +489,7 @@ const agregarSeguimiento = async (req, res) => {
   }
 };
 
-// Obtener historial de seguimiento de un reporte - SIN CAMBIOS
+// Obtener historial de seguimiento de un reporte - ACTUALIZADO PARA COMENTARIOS
 const getHistorialReporte = async (req, res) => {
   const { id } = req.params;
   const tecnicoId = req.user.id; // CORREGIDO: usar req.user
@@ -472,33 +514,35 @@ const getHistorialReporte = async (req, res) => {
       return res.status(403).json({ error: 'Sin acceso a este reporte' });
     }
     
-    // Obtener historial
-    const historialQuery = `
+    // NUEVO: Obtener comentarios públicos en lugar de seguimiento_reportes
+    const comentariosQuery = `
       SELECT 
-        s.*,
-        ea.nombre as estado_anterior_nombre,
-        en.nombre as estado_nuevo_nombre,
-        CASE 
-          WHEN s.tipo_usuario_seguimiento = 'tecnico' THEN a.nombre || ' ' || a.apellido
-          WHEN s.tipo_usuario_seguimiento = 'administrador' THEN a2.nombre || ' ' || a2.apellido
-          WHEN s.tipo_usuario_seguimiento = 'lider' THEN u.nombre || ' ' || u.apellido
-          ELSE 'Usuario desconocido'
-        END as usuario_seguimiento
-      FROM seguimiento_reportes s
-      LEFT JOIN estados_reporte ea ON s.estado_anterior = ea.id
-      LEFT JOIN estados_reporte en ON s.estado_nuevo = en.id
-      LEFT JOIN administradores a ON s.id_administrador = a.id AND s.tipo_usuario_seguimiento = 'tecnico'
-      LEFT JOIN administradores a2 ON s.id_administrador = a2.id AND s.tipo_usuario_seguimiento = 'administrador'
-      LEFT JOIN usuarios u ON s.id_lider = u.id AND s.tipo_usuario_seguimiento = 'lider'
-      WHERE s.id_reporte = $1 AND s.estado = TRUE
-      ORDER BY s.fecha_seguimiento DESC
+        cr.id,
+        cr.comentario,
+        cr.fecha_comentario,
+        cr.tipo_usuario_comentario,
+        cr.nombre_usuario,
+        cr.es_interno,
+        
+        -- Información del reporte
+        r.numero_reporte,
+        r.titulo as titulo_reporte
+        
+      FROM comentarios_reportes cr
+      INNER JOIN reportes r ON cr.id_reporte = r.id
+      WHERE cr.id_reporte = $1 
+        AND cr.estado = TRUE
+        AND cr.es_interno = FALSE
+      ORDER BY cr.fecha_comentario DESC
     `;
     
-    const historialResult = await pool.query(historialQuery, [id]);
+    const comentariosResult = await pool.query(comentariosQuery, [id]);
     
     res.json({
       success: true,
-      historial: historialResult.rows
+      historial: comentariosResult.rows,
+      tipo: 'comentarios_publicos',
+      total: comentariosResult.rows.length
     });
     
   } catch (error) {
@@ -509,7 +553,7 @@ const getHistorialReporte = async (req, res) => {
   }
 };
 
-// Obtener estadísticas del técnico - SIN CAMBIOS
+// Obtener estadísticas del técnico - CON COMENTARIOS
 const getEstadisticasTecnico = async (req, res) => {
   const tecnicoId = req.user.id; // CORREGIDO: usar req.user
   
@@ -522,7 +566,11 @@ const getEstadisticasTecnico = async (req, res) => {
         COUNT(*) FILTER (WHERE er.nombre = 'Pendiente Materiales') as pendiente_materiales,
         COUNT(*) FILTER (WHERE er.nombre = 'Resuelto') as resueltos,
         COUNT(*) FILTER (WHERE r.prioridad = 'Alta') as criticos,
-        AVG(EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_asignacion))) FILTER (WHERE er.nombre = 'Resuelto') as promedio_dias_resolucion
+        AVG(EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_asignacion))) FILTER (WHERE er.nombre = 'Resuelto') as promedio_dias_resolucion,
+        -- NUEVO: Estadísticas de comentarios del técnico
+        (SELECT COUNT(*) FROM comentarios_reportes cr 
+         INNER JOIN reportes r2 ON cr.id_reporte = r2.id 
+         WHERE r2.id_administrador_asignado = $1 AND cr.tipo_usuario_comentario = 'tecnico' AND cr.estado = TRUE) as comentarios_realizados
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       WHERE r.id_administrador_asignado = $1 AND r.estado = TRUE
@@ -532,7 +580,10 @@ const getEstadisticasTecnico = async (req, res) => {
     
     res.json({
       success: true,
-      estadisticas: statsResult.rows[0]
+      estadisticas: {
+        ...statsResult.rows[0],
+        comentarios_enabled: true
+      }
     });
     
   } catch (error) {
@@ -543,11 +594,101 @@ const getEstadisticasTecnico = async (req, res) => {
   }
 };
 
+// NUEVA FUNCIÓN: Obtener todos los reportes completados para validación histórica
+const getReportesCompletados = async (req, res) => {
+  const tecnicoId = req.user.id;
+  const { page = 1, limit = 10 } = req.query;
+  
+  try {
+    const offset = (page - 1) * limit;
+    
+    const query = `
+      SELECT 
+        r.id,
+        r.numero_reporte,
+        r.titulo,
+        r.descripcion,
+        r.direccion,
+        r.prioridad,
+        r.fecha_reporte,
+        r.fecha_asignacion,
+        r.fecha_resolucion,
+        
+        er.nombre as estado,
+        tp.nombre as tipo_problema,
+        z.nombre as zona,
+        
+        -- Información del ciudadano/creador
+        CASE 
+          WHEN r.tipo_usuario_creador = 'ciudadano' THEN c.nombre || ' ' || c.apellido
+          WHEN r.tipo_usuario_creador = 'lider' THEN u.nombre || ' ' || u.apellido
+          ELSE 'Usuario desconocido'
+        END as reportado_por,
+        
+        -- Días para resolución
+        EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_asignacion)) as dias_resolucion,
+        
+        -- Contador de comentarios
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count
+        
+      FROM reportes r
+      JOIN estados_reporte er ON r.id_estado = er.id
+      JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
+      LEFT JOIN ciudadanos_colaboradores c ON r.id_ciudadano_colaborador = c.id
+      LEFT JOIN usuarios u ON r.id_usuario = u.id
+      LEFT JOIN zonas z ON r.id_zona = z.id
+      WHERE r.id_administrador_asignado = $1 
+        AND r.estado = TRUE
+        AND er.nombre IN ('Resuelto', 'Cerrado')
+      ORDER BY r.fecha_resolucion DESC
+      LIMIT $2 OFFSET $3
+    `;
+    
+    const result = await pool.query(query, [tecnicoId, limit, offset]);
+    
+    // Contar total
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM reportes r
+      JOIN estados_reporte er ON r.id_estado = er.id
+      WHERE r.id_administrador_asignado = $1 
+        AND r.estado = TRUE
+        AND er.nombre IN ('Resuelto', 'Cerrado')
+    `;
+    
+    const countResult = await pool.query(countQuery, [tecnicoId]);
+    
+    res.json({
+      success: true,
+      reportes_completados: result.rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: parseInt(countResult.rows[0].total),
+        pages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error al obtener reportes completados:', error);
+    res.status(500).json({ 
+      error: 'Error al obtener reportes completados' 
+    });
+  }
+};
+
 module.exports = {
   getMisReportes,
-  getReporteDetalle, // NUEVO MÉTODO
-  cambiarEstadoReporte,
-  agregarSeguimiento,
-  getHistorialReporte,
-  getEstadisticasTecnico
+  getReporteDetalle,       // NUEVO MÉTODO
+  cambiarEstadoReporte,    // ✅ ACTUALIZADO CON COMENTARIOS DINÁMICOS
+  agregarSeguimiento,      // ✅ ACTUALIZADO CON COMENTARIOS DINÁMICOS
+  getHistorialReporte,     // ✅ ACTUALIZADO PARA COMENTARIOS
+  getEstadisticasTecnico,  // ✅ ACTUALIZADO CON ESTADÍSTICAS DE COMENTARIOS
+  getReportesCompletados   // NUEVA FUNCIÓN
 };

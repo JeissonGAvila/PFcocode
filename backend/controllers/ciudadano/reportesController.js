@@ -1,4 +1,4 @@
-// backend/controllers/ciudadano/reportesController.js - ACTUALIZADO CON CATEGORÍAS Y TIPOS
+// backend/controllers/ciudadano/reportesController.js - ACTUALIZADO SIN FUNCIÓN OBSOLETA
 const pool = require('../../models/db');
 const { guardarArchivosFirebaseDB, getArchivosReporteDB } = require('../firebaseController');
 
@@ -125,22 +125,22 @@ const crearReporte = async (req, res) => {
       `ciudadano_${ciudadanoId}`
     ]);
 
-    // Registrar en seguimiento
+    // Crear comentario inicial automático usando sistema universal
     try {
-      const seguimientoQuery = `
-        INSERT INTO seguimiento_reportes (
-          id_reporte, tipo_usuario_seguimiento,
-          comentario, tipo_seguimiento, usuario_ingreso
-        ) VALUES ($1, 'ciudadano', $2, 'creacion', $3)
-      `;
-
-      await pool.query(seguimientoQuery, [
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_ciudadano, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'ciudadano', $3, $4, FALSE, $5)
+      `, [
         newReporte.rows[0].id,
-        `Reporte creado por el ciudadano. Ubicación: ${latFinal && lngFinal ? 'GPS' : 'Dirección'}: ${direccion}`,
+        ciudadanoId,
+        `${ciudadano.nombre} ${ciudadano.apellido}`,
+        `Reporte creado. Ubicación: ${latFinal && lngFinal ? 'GPS' : 'Dirección'}: ${direccion}`,
         `ciudadano_${ciudadanoId}`
       ]);
-    } catch (seguimientoError) {
-      console.warn('No se pudo registrar seguimiento:', seguimientoError.message);
+    } catch (comentarioError) {
+      console.warn('No se pudo crear comentario inicial:', comentarioError.message);
     }
 
     res.status(201).json({
@@ -263,7 +263,7 @@ const getArchivosReporte = async (req, res) => {
   }
 };
 
-// Obtener reportes del ciudadano (SOLO los suyos)
+// Obtener reportes del ciudadano (SOLO los suyos) - INCLUYE CONTADOR DE COMENTARIOS
 const getMisReportes = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
@@ -315,7 +315,9 @@ const getMisReportes = async (req, res) => {
         -- Verificar si tiene fotos (Firebase + locales)
         (SELECT COUNT(*) > 0 FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.estado = TRUE) as tiene_fotos,
         -- Contar archivos Firebase específicamente
-        (SELECT COUNT(*) FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.firebase_path IS NOT NULL AND ar.estado = TRUE) as fotos_firebase
+        (SELECT COUNT(*) FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.firebase_path IS NOT NULL AND ar.estado = TRUE) as fotos_firebase,
+        -- NUEVO: Contar comentarios públicos
+        (SELECT COUNT(*) FROM comentarios_reportes cr WHERE cr.id_reporte = r.id AND cr.es_interno = FALSE AND cr.estado = TRUE) as comentarios_count
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
@@ -339,7 +341,11 @@ const getMisReportes = async (req, res) => {
         COUNT(*) FILTER (WHERE er.nombre = 'Resuelto') as resueltos,
         COUNT(*) FILTER (WHERE er.nombre = 'Cerrado') as cerrados,
         COUNT(*) FILTER (WHERE r.prioridad = 'Alta') as criticos,
-        AVG(EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_reporte))) FILTER (WHERE er.nombre = 'Resuelto') as promedio_dias_resolucion
+        AVG(EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_reporte))) FILTER (WHERE er.nombre = 'Resuelto') as promedio_dias_resolucion,
+        -- NUEVO: Estadísticas de comentarios
+        (SELECT COUNT(*) FROM comentarios_reportes cr 
+         INNER JOIN reportes r2 ON cr.id_reporte = r2.id 
+         WHERE r2.id_ciudadano_colaborador = $1 AND cr.tipo_usuario_comentario = 'ciudadano' AND cr.estado = TRUE) as comentarios_realizados
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       WHERE r.id_ciudadano_colaborador = $1 AND r.estado = TRUE
@@ -355,77 +361,14 @@ const getMisReportes = async (req, res) => {
       },
       reportes: reportesResult.rows,
       total: reportesResult.rows.length,
-      firebase_enabled: true
+      firebase_enabled: true,
+      comentarios_enabled: true
     });
 
   } catch (error) {
     console.error('Error al obtener reportes del ciudadano:', error);
     res.status(500).json({
       error: 'Error al obtener tus reportes'
-    });
-  }
-};
-
-// Agregar comentario a reporte propio
-const agregarComentario = async (req, res) => {
-  const { id } = req.params;
-  const { comentario } = req.body;
-  const ciudadanoId = req.user.id;
-
-  try {
-    if (!comentario || comentario.trim().length < 5) {
-      return res.status(400).json({
-        error: 'El comentario debe tener al menos 5 caracteres'
-      });
-    }
-
-    // Verificar que el reporte pertenece al ciudadano
-    const verificarQuery = `
-      SELECT id, titulo, numero_reporte
-      FROM reportes 
-      WHERE id = $1 AND id_ciudadano_colaborador = $2 AND estado = TRUE
-    `;
-    
-    const verificarResult = await pool.query(verificarQuery, [id, ciudadanoId]);
-    
-    if (verificarResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Reporte no encontrado o no tienes permisos para comentar'
-      });
-    }
-
-    // Insertar comentario en seguimiento
-    try {
-      const seguimientoQuery = `
-        INSERT INTO seguimiento_reportes (
-          id_reporte, tipo_usuario_seguimiento,
-          comentario, tipo_seguimiento, usuario_ingreso
-        ) VALUES ($1, 'ciudadano', $2, 'comentario', $3)
-        RETURNING *
-      `;
-
-      const seguimientoResult = await pool.query(seguimientoQuery, [
-        id, comentario.trim(), `ciudadano_${ciudadanoId}`
-      ]);
-
-      res.json({
-        success: true,
-        message: 'Comentario agregado exitosamente',
-        seguimiento: seguimientoResult.rows[0]
-      });
-    } catch (seguimientoError) {
-      console.warn('Error al insertar seguimiento:', seguimientoError.message);
-      res.json({
-        success: true,
-        message: 'Comentario registrado (seguimiento limitado)',
-        seguimiento: null
-      });
-    }
-
-  } catch (error) {
-    console.error('Error al agregar comentario:', error);
-    res.status(500).json({
-      error: 'Error al agregar comentario'
     });
   }
 };
@@ -527,6 +470,7 @@ const getDatosFormulario = async (req, res) => {
         { value: 'manual', label: 'Dirección manual' }
       ],
       firebase_enabled: true,
+      comentarios_enabled: true,
       mensaje: 'Datos obtenidos correctamente'
     });
 
@@ -540,10 +484,12 @@ const getDatosFormulario = async (req, res) => {
   }
 };
 
+// ✅ FUNCIÓN OBSOLETA ELIMINADA: agregarComentario (ahora usa comentariosController.js universal)
+
 module.exports = {
   crearReporte,
   getMisReportes,
-  agregarComentario,
+  // ❌ agregarComentario, // ELIMINADA - usa sistema universal
   getTiposProblema,
   getDatosFormulario,  // FUNCIÓN CORREGIDA CON CATEGORÍAS
   // NUEVAS FUNCIONES FIREBASE

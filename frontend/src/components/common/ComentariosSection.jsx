@@ -25,7 +25,7 @@ import {
   Engineering as TecnicoIcon,
   Groups as LiderIcon
 } from '@mui/icons-material';
-import { reportesService } from '../../services/reportesService';
+import ciudadanoService from '../../services/ciudadano/ciudadanoService';
 
 const ComentariosSection = ({ reporteId, onComentarioAgregado }) => {
   const [comentarios, setComentarios] = useState([]);
@@ -46,7 +46,7 @@ const ComentariosSection = ({ reporteId, onComentarioAgregado }) => {
   const cargarComentarios = async () => {
     try {
       setLoadingComentarios(true);
-      const response = await reportesService.obtenerComentarios(reporteId);
+      const response = await ciudadanoService.obtenerComentarios(reporteId);
       if (response.success) {
         setComentarios(response.comentarios || []);
         setTotalComentarios(response.total || 0);
@@ -69,7 +69,7 @@ const ComentariosSection = ({ reporteId, onComentarioAgregado }) => {
       setLoading(true);
       setError('');
       
-      const response = await reportesService.agregarComentario(reporteId, nuevoComentario.trim());
+      const response = await ciudadanoService.agregarComentario(reporteId, nuevoComentario.trim());
       
       if (response.success) {
         setNuevoComentario('');

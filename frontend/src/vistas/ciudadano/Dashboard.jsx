@@ -1,4 +1,4 @@
-// frontend/src/vistas/ciudadano/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA
+// frontend/src/vistas/ciudadano/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA CON COMENTARIOS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -77,13 +77,16 @@ import {
   Email as EmailIcon,
   Dashboard as DashboardIcon,
   Category as CategoryIcon,
-  PriorityHigh as PriorityIcon
+  PriorityHigh as PriorityIcon,
+  Visibility as VisibilityIcon,
+  ChatBubbleOutline as ChatBubbleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
 import ciudadanoService, { geoUtils, estadosReporteCiudadano, prioridadesReporte } from '../../services/ciudadano/ciudadanoService.js';
 import MapaUbicacion from '../../components/ciudadano/MapaUbicacion.jsx';
 import SubidaFotos from '../../components/ciudadano/SubidaFotos.jsx';
+import ComentariosSection from '../../components/common/ComentariosSection.jsx';
 
 const DashboardCiudadano = () => {
   const { user, isAuthenticated, isCiudadano, logout } = useAuth();
@@ -109,6 +112,7 @@ const DashboardCiudadano = () => {
   // Estados para modales
   const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
   const [openComentario, setOpenComentario] = useState(false);
+  const [openDetallesReporte, setOpenDetallesReporte] = useState(false);
   const [selectedReporte, setSelectedReporte] = useState(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
@@ -196,7 +200,6 @@ const DashboardCiudadano = () => {
         setTiposProblema(datosResponse.tipos_problema || []);
         setCategoriasProblema(datosResponse.categorias_problema || []);
         
-        // DEBUG: Verificar datos recibidos
         console.log('✅ Datos recibidos del backend:');
         console.log('📋 Categorías:', datosResponse.categorias_problema?.length || 0);
         console.log('🔧 Tipos:', datosResponse.tipos_problema?.length || 0);
@@ -268,7 +271,6 @@ const DashboardCiudadano = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Limpiar tipo de problema cuando cambia la categoría
     if (name === 'id_categoria_problema') {
       setFormData(prev => ({ ...prev, id_tipo_problema: '' }));
     }
@@ -295,12 +297,17 @@ const DashboardCiudadano = () => {
     setOpenComentario(true);
   };
 
+  const abrirModalDetallesReporte = (reporte) => {
+    setSelectedReporte(reporte);
+    setOpenDetallesReporte(true);
+  };
+
   const cerrarModales = () => {
     setOpenNuevoReporte(false);
     setOpenComentario(false);
+    setOpenDetallesReporte(false);
     setSelectedReporte(null);
     setComentario('');
-    // Limpiar fotos y liberar memoria
     fotosReporte.forEach(foto => {
       if (foto.preview) {
         URL.revokeObjectURL(foto.preview);
@@ -309,12 +316,10 @@ const DashboardCiudadano = () => {
     setFotosReporte([]);
   };
 
-  // Función para manejar cambios en fotos
   const handleFotosChange = (nuevasFotos) => {
     setFotosReporte(nuevasFotos);
   };
 
-  // Función para manejar cambios en ubicación
   const handleUbicacionChange = (nuevaUbicacion) => {
     setUbicacion(prev => ({
       ...prev,
@@ -322,7 +327,6 @@ const DashboardCiudadano = () => {
     }));
   };
 
-  // Toggle secciones expandibles
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -330,10 +334,8 @@ const DashboardCiudadano = () => {
     }));
   };
 
-  // FUNCIÓN ACTUALIZADA PARA CREAR REPORTE CON RECARGA AUTOMÁTICA
   const handleCrearReporte = async () => {
     try {
-      // Validaciones
       if (!formData.titulo || !formData.descripcion || !formData.direccion || !formData.id_tipo_problema) {
         mostrarSnackbar('Por favor completa todos los campos requeridos', 'error');
         return;
@@ -346,7 +348,6 @@ const DashboardCiudadano = () => {
 
       setLoading(true);
 
-      // Datos base del reporte
       const reporteData = {
         titulo: formData.titulo,
         descripcion: formData.descripcion,
@@ -359,33 +360,26 @@ const DashboardCiudadano = () => {
         precision_metros: ubicacion.precision
       };
 
-      // Decidir método según si hay fotos
       if (fotosReporte.length > 0) {
-        // CON FOTOS: usar Firebase Storage
         console.log('🔥 Creando reporte con Firebase Storage...');
         const response = await ciudadanoService.crearReporteConFotos(reporteData, fotosReporte);
         
         if (response.success) {
           mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente con ${fotosReporte.length} foto(s)`, 'success');
           cerrarModales();
-          // RECARGA AUTOMÁTICA SIN CERRAR SESIÓN
           await cargarDatos();
-          setTabValue(1); // Cambiar a la pestaña de "Mis Reportes"
+          setTabValue(1);
         }
-
       } else {
-        // SIN FOTOS: usar método normal
         const response = await ciudadanoService.crearReporte(reporteData);
         
         if (response.success) {
           mostrarSnackbar(`Reporte ${response.numero_reporte} creado exitosamente`, 'success');
           cerrarModales();
-          // RECARGA AUTOMÁTICA SIN CERRAR SESIÓN
           await cargarDatos();
-          setTabValue(1); // Cambiar a la pestaña de "Mis Reportes"
+          setTabValue(1);
         }
       }
-
     } catch (error) {
       console.error('Error creando reporte:', error);
       mostrarSnackbar('Error: ' + error.message, 'error');
@@ -406,7 +400,6 @@ const DashboardCiudadano = () => {
       mostrarSnackbar('Comentario agregado exitosamente', 'success');
       cerrarModales();
       cargarDatos();
-
     } catch (error) {
       mostrarSnackbar(error.message, 'error');
     } finally {
@@ -414,7 +407,11 @@ const DashboardCiudadano = () => {
     }
   };
 
-  // Funciones auxiliares
+  const handleComentarioAgregado = (nuevoComentario) => {
+    mostrarSnackbar('Comentario agregado exitosamente', 'success');
+    cargarDatos();
+  };
+
   const getEstadoInfo = (estado) => {
     return estadosReporteCiudadano[estado] || { color: 'default', descripcion: estado, progreso: 0 };
   };
@@ -431,17 +428,14 @@ const DashboardCiudadano = () => {
     }
   };
 
-  // Función para cerrar sesión
   const handleLogout = () => {
     logout();
   };
 
-  // Filtrar tipos de problema por categoría seleccionada
   const tiposProblemaFiltrados = tiposProblema.filter(
     tipo => !formData.id_categoria_problema || tipo.id_categoria === parseInt(formData.id_categoria_problema)
   );
 
-  // Verificaciones de seguridad
   if (!isAuthenticated) {
     return (
       <Container maxWidth="sm" sx={{ mt: 4 }}>
@@ -477,18 +471,14 @@ const DashboardCiudadano = () => {
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      {/* HEADER RESPONSIVO */}
       <AppBar position="static" color="primary" elevation={0}>
         <Toolbar sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
-          {/* Lado izquierdo */}
           <Box display="flex" alignItems="center" flexGrow={1}>
-            {/* Icono del panel */}
             <PersonIcon sx={{ 
               fontSize: { xs: 28, md: 35 }, 
               mr: { xs: 1, md: 2 } 
             }} />
             
-            {/* Texto del header - Responsivo */}
             <Box>
               <Typography 
                 variant={isMobile ? "h6" : "h4"} 
@@ -502,7 +492,6 @@ const DashboardCiudadano = () => {
                 {isMobile ? 'Panel Ciudadano' : 'Panel Ciudadano Firebase'}
               </Typography>
               
-              {/* Info del usuario - Oculta en móviles muy pequeños */}
               <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
                 <Typography 
                   variant="subtitle1"
@@ -517,16 +506,13 @@ const DashboardCiudadano = () => {
             </Box>
           </Box>
 
-          {/* Lado derecho - Responsivo */}
           <Box display="flex" alignItems="center" gap={{ xs: 0.5, md: 1 }}>
-            {/* Notificaciones */}
             <IconButton color="inherit" size={isMobile ? "small" : "medium"}>
               <Badge badgeContent={estadisticas.nuevos || 0} color="warning">
                 <NotificationsIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
               </Badge>
             </IconButton>
 
-            {/* Botón logout - REPOSICIONADO PARA MÓVILES */}
             {isMobile ? (
               <IconButton 
                 color="inherit" 
@@ -543,7 +529,6 @@ const DashboardCiudadano = () => {
         </Toolbar>
       </AppBar>
 
-      {/* INFO ADICIONAL MÓVIL */}
       {isMobile && (
         <Box bgcolor="primary.dark" color="white" px={2} py={1}>
           <Typography variant="caption" display="block">
@@ -561,11 +546,16 @@ const DashboardCiudadano = () => {
               icon={<CloudUploadIcon sx={{ fontSize: 12 }} />}
               sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
             />
+            <Chip 
+              label="Comentarios"
+              size="small"
+              icon={<CommentIcon sx={{ fontSize: 12 }} />}
+              sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.7rem' }}
+            />
           </Box>
         </Box>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
       <Container 
         maxWidth="xl" 
         sx={{ 
@@ -573,13 +563,12 @@ const DashboardCiudadano = () => {
           px: { xs: 1, sm: 2, md: 3 }
         }}
       >
-        {/* Bienvenida */}
         <Alert severity="success" sx={{ mb: 3 }}>
           <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
             <strong>Hola {user?.nombre?.split(' ')[0]}!</strong> {
               isMobile 
-                ? 'Crea reportes con fotos y GPS.' 
-                : 'Ahora puedes crear reportes con Firebase Storage para fotos optimizadas, ubicación GPS/mapa y seguimiento en tiempo real.'
+                ? 'Crea reportes, agrega comentarios y da seguimiento.' 
+                : 'Ahora puedes crear reportes con Firebase Storage para fotos optimizadas, ubicación GPS/mapa, seguimiento en tiempo real y sistema de comentarios integrado.'
             }
           </Typography>
         </Alert>
@@ -593,7 +582,6 @@ const DashboardCiudadano = () => {
           </Alert>
         )}
 
-        {/* SISTEMA DE TABS RESPONSIVO */}
         <Paper sx={{ borderRadius: 2, mb: 3 }}>
           <Tabs 
             value={tabValue} 
@@ -626,10 +614,8 @@ const DashboardCiudadano = () => {
           </Tabs>
         </Paper>
 
-        {/* TAB 0: CREAR REPORTE - COMPLETAMENTE RESPONSIVO */}
         {tabValue === 0 && (
           <Grid container spacing={{ xs: 2, md: 3 }}>
-            {/* Formulario Principal */}
             <Grid item xs={12} lg={8}>
               <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                 <Box display="flex" alignItems="center" gap={1} mb={2}>
@@ -662,7 +648,6 @@ const DashboardCiudadano = () => {
                 </Typography>
 
                 <Grid container spacing={{ xs: 2, md: 3 }}>
-                  {/* Título */}
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
@@ -681,7 +666,6 @@ const DashboardCiudadano = () => {
                     />
                   </Grid>
 
-                  {/* Categoría de Problema */}
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth required size={isMobile ? "small" : "medium"}>
                       <InputLabel>Categoría de Problema</InputLabel>
@@ -712,7 +696,6 @@ const DashboardCiudadano = () => {
                     </FormControl>
                   </Grid>
 
-                  {/* Tipo de Problema */}
                   <Grid item xs={12} sm={6}>
                     <FormControl 
                       fullWidth 
@@ -745,7 +728,6 @@ const DashboardCiudadano = () => {
                     </FormControl>
                   </Grid>
 
-                  {/* Prioridad */}
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth size={isMobile ? "small" : "medium"}>
                       <InputLabel>Prioridad</InputLabel>
@@ -767,7 +749,6 @@ const DashboardCiudadano = () => {
                     </FormControl>
                   </Grid>
 
-                  {/* Descripción */}
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
@@ -783,7 +764,6 @@ const DashboardCiudadano = () => {
                     />
                   </Grid>
 
-                  {/* Dirección */}
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
@@ -798,7 +778,6 @@ const DashboardCiudadano = () => {
                     />
                   </Grid>
 
-                  {/* MAPA DE UBICACIÓN - RESPONSIVO */}
                   <Grid item xs={12}>
                     <Accordion 
                       expanded={expandedSections.ubicacion}
@@ -834,7 +813,6 @@ const DashboardCiudadano = () => {
                     </Accordion>
                   </Grid>
 
-                  {/* SECCIÓN DE FOTOS FIREBASE - RESPONSIVA */}
                   <Grid item xs={12}>
                     <Accordion 
                       expanded={expandedSections.fotos}
@@ -871,8 +849,6 @@ const DashboardCiudadano = () => {
                       </AccordionDetails>
                     </Accordion>
                   </Grid>
-
-                  {/* Botón Crear - RESPONSIVO */}
                   <Grid item xs={12}>
                     <Button
                       fullWidth
@@ -900,15 +876,13 @@ const DashboardCiudadano = () => {
               </Paper>
             </Grid>
 
-            {/* SIDEBAR RESPONSIVO */}
             <Grid item xs={12} lg={4}>
               <Stack spacing={{ xs: 2, md: 3 }}>
-                {/* Consejos Firebase */}
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Box display="flex" alignItems="center" gap={1} mb={2}>
                     <CloudUploadIcon color="success" />
                     <Typography variant="h6" sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
-                      Firebase Storage
+                      Firebase Storage + Comentarios
                     </Typography>
                   </Box>
                   
@@ -926,11 +900,11 @@ const DashboardCiudadano = () => {
                     </ListItem>
                     <ListItem sx={{ px: 0 }}>
                       <ListItemIcon>
-                        <PhotoCameraIcon color="primary" sx={{ fontSize: { xs: 16, md: 20 } }} />
+                        <CommentIcon color="primary" sx={{ fontSize: { xs: 16, md: 20 } }} />
                       </ListItemIcon>
                       <ListItemText
-                        primary="Optimización Inteligente"
-                        secondary="Imágenes se comprimen y redimensionan automáticamente"
+                        primary="Sistema de Comentarios"
+                        secondary="Agrega comentarios y haz seguimiento en tiempo real"
                         primaryTypographyProps={{ fontSize: { xs: '0.85rem', md: '0.9rem' } }}
                         secondaryTypographyProps={{ fontSize: { xs: '0.75rem', md: '0.8rem' } }}
                       />
@@ -949,7 +923,6 @@ const DashboardCiudadano = () => {
                   </List>
                 </Paper>
 
-                {/* Estadísticas */}
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Estadísticas Personales
@@ -981,7 +954,6 @@ const DashboardCiudadano = () => {
                     </Grid>
                   </Grid>
 
-                  {/* Info de fotos Firebase */}
                   {fotosReporte.length > 0 && (
                     <Alert severity="success" sx={{ mt: 2 }}>
                       <Typography variant="body2" sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
@@ -998,7 +970,6 @@ const DashboardCiudadano = () => {
           </Grid>
         )}
 
-        {/* TAB 1: MIS REPORTES - COMPLETAMENTE RESPONSIVO */}
         {tabValue === 1 && (
           <Box>
             <Box 
@@ -1083,6 +1054,16 @@ const DashboardCiudadano = () => {
                               variant="outlined"
                               sx={{ fontSize: { xs: '0.65rem', md: '0.7rem' } }}
                             />
+                            {reporte.comentarios_count > 0 && (
+                              <Chip 
+                                label={`${reporte.comentarios_count} comentarios`}
+                                size="small"
+                                icon={<CommentIcon />}
+                                color="info"
+                                variant="outlined"
+                                sx={{ fontSize: { xs: '0.65rem', md: '0.7rem' } }}
+                              />
+                            )}
                           </Box>
 
                           <Typography 
@@ -1113,7 +1094,6 @@ const DashboardCiudadano = () => {
                             {estadoInfo.descripcion}
                           </Typography>
 
-                          {/* Información adicional solo en desktop */}
                           {!isMobile && (
                             <Box mt={2}>
                               <Typography variant="caption" color="textSecondary" display="block">
@@ -1128,19 +1108,52 @@ const DashboardCiudadano = () => {
                         </CardContent>
 
                         <CardActions sx={{ p: { xs: 2, md: 3 }, pt: 0 }}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="outlined"
-                            startIcon={<CommentIcon />}
-                            onClick={() => abrirModalComentario(reporte)}
-                            sx={{ 
-                              fontSize: { xs: '0.75rem', md: '0.8rem' },
-                              textTransform: 'none'
-                            }}
-                          >
-                            {isMobile ? 'Comentar' : 'Agregar Comentario'}
-                          </Button>
+                          <Stack spacing={1} sx={{ width: '100%' }}>
+                            <Box display="flex" gap={1}>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<VisibilityIcon />}
+                                onClick={() => abrirModalDetallesReporte(reporte)}
+                                sx={{ 
+                                  flex: 1,
+                                  fontSize: { xs: '0.7rem', md: '0.75rem' },
+                                  textTransform: 'none'
+                                }}
+                              >
+                                {isMobile ? 'Ver' : 'Ver Detalles'}
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<CommentIcon />}
+                                onClick={() => abrirModalComentario(reporte)}
+                                sx={{ 
+                                  flex: 1,
+                                  fontSize: { xs: '0.7rem', md: '0.75rem' },
+                                  textTransform: 'none'
+                                }}
+                              >
+                                {isMobile ? 'Comentar' : 'Agregar Comentario'}
+                              </Button>
+                            </Box>
+                            
+                            {reporte.comentarios_count > 0 && (
+                              <Button
+                                fullWidth
+                                size="small"
+                                variant="text"
+                                startIcon={<ChatBubbleIcon />}
+                                onClick={() => abrirModalDetallesReporte(reporte)}
+                                sx={{ 
+                                  fontSize: { xs: '0.7rem', md: '0.75rem' },
+                                  textTransform: 'none'
+                                }}
+                              >
+                                Ver todos los comentarios ({reporte.comentarios_count})
+                              </Button>
+                            )}
+                          </Stack>
                         </CardActions>
                       </Card>
                     </Grid>
@@ -1152,6 +1165,9 @@ const DashboardCiudadano = () => {
                 <ReporteIcon sx={{ fontSize: { xs: 50, md: 60 }, color: 'grey.400', mb: 2 }} />
                 <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                   No has creado reportes aún
+                </Typography>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                  Crea tu primer reporte para empezar a participar en tu comunidad
                 </Typography>
                 <Button 
                   variant="contained" 
@@ -1171,7 +1187,6 @@ const DashboardCiudadano = () => {
           </Box>
         )}
 
-        {/* TAB 2: MI ACTIVIDAD - RESPONSIVO */}
         {tabValue === 2 && (
           <Box>
             <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}>
@@ -1179,7 +1194,6 @@ const DashboardCiudadano = () => {
             </Typography>
             
             <Grid container spacing={{ xs: 2, md: 3 }}>
-              {/* Resumen de Participación */}
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
@@ -1219,11 +1233,21 @@ const DashboardCiudadano = () => {
                         secondaryTypographyProps={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
                       />
                     </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <CommentIcon color="warning" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Comentarios realizados"
+                        secondary={estadisticas.comentarios_realizados || 0}
+                        primaryTypographyProps={{ fontSize: { xs: '0.9rem', md: '1rem' } }}
+                        secondaryTypographyProps={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                      />
+                    </ListItem>
                   </List>
                 </Paper>
               </Grid>
 
-              {/* Información del Perfil */}
               <Grid item xs={12} md={6}>
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 3 } }}>
                   <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
@@ -1271,7 +1295,6 @@ const DashboardCiudadano = () => {
         )}
       </Container>
 
-      {/* FLOATING ACTION BUTTON PARA MÓVILES */}
       {isMobile && tabValue !== 0 && (
         <Fab
           color="primary"
@@ -1288,7 +1311,6 @@ const DashboardCiudadano = () => {
         </Fab>
       )}
 
-      {/* MODAL COMENTARIO - RESPONSIVO */}
       <Dialog 
         open={openComentario} 
         onClose={cerrarModales} 
@@ -1297,11 +1319,17 @@ const DashboardCiudadano = () => {
         fullScreen={isSmallMobile}
       >
         <DialogTitle sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}>
-          Agregar Comentario
+          <Box display="flex" alignItems="center" gap={1}>
+            <CommentIcon />
+            Agregar Comentario
+          </Box>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" gutterBottom sx={{ fontSize: { xs: '0.9rem', md: '1rem' } }}>
             <strong>Reporte:</strong> {selectedReporte?.titulo}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            <strong>Estado actual:</strong> {selectedReporte?.estado}
           </Typography>
           <TextField
             fullWidth
@@ -1313,6 +1341,8 @@ const DashboardCiudadano = () => {
             placeholder="Agrega información adicional, cambios en el problema, o cualquier comentario relevante..."
             sx={{ mt: 2 }}
             size={isMobile ? "small" : "medium"}
+            inputProps={{ maxLength: 1000 }}
+            helperText={`${comentario.length}/1000 caracteres`}
           />
         </DialogContent>
         <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
@@ -1325,13 +1355,90 @@ const DashboardCiudadano = () => {
             disabled={!comentario.trim() || loading}
             size={isMobile ? "small" : "medium"}
             sx={{ textTransform: 'none' }}
+            startIcon={loading ? <CircularProgress size={16} /> : <CommentIcon />}
           >
-            {loading ? <CircularProgress size={20} /> : 'Agregar'}
+            {loading ? 'Agregando...' : 'Agregar Comentario'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* SNACKBAR RESPONSIVO */}
+      <Dialog 
+        open={openDetallesReporte} 
+        onClose={cerrarModales} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <VisibilityIcon />
+              Detalles del Reporte
+            </Box>
+            {isMobile && (
+              <IconButton onClick={cerrarModales}>
+                <CloseIcon />
+              </IconButton>
+            )}
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: { xs: 2, md: 3 } }}>
+          {selectedReporte && (
+            <Box>
+              <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  {selectedReporte.titulo}
+                </Typography>
+                <Box display="flex" flexWrap="wrap" gap={1} mb={2}>
+                  <Chip 
+                    label={`#${selectedReporte.numero_reporte}`} 
+                    color="primary" 
+                    size="small" 
+                  />
+                  <Chip 
+                    label={selectedReporte.estado} 
+                    color={getEstadoInfo(selectedReporte.estado).color}
+                    size="small" 
+                  />
+                  <Chip 
+                    label={selectedReporte.prioridad} 
+                    color={getPrioridadColor(selectedReporte.prioridad)}
+                    size="small" 
+                  />
+                  {selectedReporte.fotos_firebase > 0 && (
+                    <Chip 
+                      label={`${selectedReporte.fotos_firebase} fotos Firebase`}
+                      icon={<CloudUploadIcon />}
+                      color="success"
+                      size="small" 
+                    />
+                  )}
+                </Box>
+                <Typography variant="body2" paragraph>
+                  <strong>Descripción:</strong> {selectedReporte.descripcion}
+                </Typography>
+                <Typography variant="body2" paragraph>
+                  <strong>Dirección:</strong> {selectedReporte.direccion}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Creado:</strong> {new Date(selectedReporte.fecha_reporte).toLocaleDateString()}
+                </Typography>
+              </Paper>
+
+              <ComentariosSection 
+                reporteId={selectedReporte.id}
+                onComentarioAgregado={handleComentarioAgregado}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: { xs: 2, md: 3 } }}>
+          <Button onClick={cerrarModales} size={isMobile ? "small" : "medium"}>
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
@@ -1350,7 +1457,6 @@ const DashboardCiudadano = () => {
         </Alert>
       </Snackbar>
 
-      {/* FOOTER RESPONSIVO */}
       <Box mt={4} p={{ xs: 2, md: 3 }} bgcolor="success.50" borderRadius={1}>
         <Typography 
           variant="body2" 
@@ -1358,11 +1464,20 @@ const DashboardCiudadano = () => {
           textAlign="center"
           sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}
         >
-          <strong>Firebase Storage:</strong> {
+          <strong>Firebase Storage + Sistema de Comentarios:</strong> {
             isMobile 
-              ? 'Fotos optimizadas | Almacenamiento en la nube | URLs seguras'
-              : 'Fotos optimizadas automáticamente | Almacenamiento en la nube | URLs seguras | Compatible con todos los paneles | Migración exitosa de Multer a Firebase completada'
+              ? 'Fotos optimizadas | Comentarios en tiempo real | Seguimiento completo'
+              : 'Fotos optimizadas automáticamente | Sistema de comentarios universal | Almacenamiento seguro Firebase | Seguimiento en tiempo real | Compatible con todos los paneles'
           }
+        </Typography>
+        <Typography 
+          variant="caption" 
+          color="textSecondary" 
+          textAlign="center"
+          display="block"
+          sx={{ mt: 1, fontSize: { xs: '0.7rem', md: '0.75rem' } }}
+        >
+          Funcionalidades del ciudadano: ✓ Crear reportes ✓ Ver mis reportes ✓ Comentar mis reportes ✓ Ver comentarios públicos ✓ Seguimiento en tiempo real
         </Typography>
       </Box>
     </Box>

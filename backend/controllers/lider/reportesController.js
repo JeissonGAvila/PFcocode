@@ -1,4 +1,4 @@
-// backend/controllers/lider/reportesController.js - MEJORADO CON FOTOS Y UBICACIÓN
+// backend/controllers/lider/reportesController.js - MEJORADO CON FOTOS Y UBICACIÓN + COMENTARIOS SINCRONIZADOS
 const pool = require('../../models/db');
 
 // 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona) - MEJORADO
@@ -112,7 +112,7 @@ const getReportesPendientesAprobacion = async (req, res) => {
   }
 };
 
-// 2. VER REPORTES DE SU ZONA (todos los estados) - MEJORADO
+// 2. VER REPORTES DE SU ZONA (todos los estados) - MEJORADO CON CONTADOR DE COMENTARIOS
 const getReportesZona = async (req, res) => {
   try {
     const liderId = req.user.id;
@@ -189,7 +189,16 @@ const getReportesZona = async (req, res) => {
           WHERE ar.id_reporte = r.id 
             AND ar.estado = TRUE
             AND ar.es_evidencia_inicial = TRUE
-        ) as total_fotos
+        ) as total_fotos,
+        
+        -- NUEVO: Contador de comentarios públicos
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count
         
       FROM reportes r
       INNER JOIN ciudadanos_colaboradores cc ON r.id_ciudadano_colaborador = cc.id
@@ -255,7 +264,7 @@ const getReportesZona = async (req, res) => {
   }
 };
 
-// 3. APROBAR REPORTE (Mantener igual)
+// 3. APROBAR REPORTE - CON COMENTARIO SINCRONIZADO
 const aprobarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -336,6 +345,22 @@ const aprobarReporte = async (req, res) => {
       `lider_${liderId}`
     ]);
 
+    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    if (comentario_lider && comentario_lider.trim()) {
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_usuario_lider, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'lider', $3, $4, FALSE, $5)
+      `, [
+        reporteId,
+        liderId,
+        `${req.user.nombre} ${req.user.apellido}`,
+        comentario_lider.trim(),
+        `lider_${liderId}`
+      ]);
+    }
+
     res.json({
       success: true,
       message: 'Reporte aprobado exitosamente',
@@ -352,7 +377,7 @@ const aprobarReporte = async (req, res) => {
   }
 };
 
-// 4. RECHAZAR REPORTE (Mantener igual)
+// 4. RECHAZAR REPORTE - CON COMENTARIO SINCRONIZADO
 const rechazarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -439,6 +464,22 @@ const rechazarReporte = async (req, res) => {
       `lider_${liderId}`
     ]);
 
+    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    const comentarioRechazo = `Motivo de rechazo: ${motivo_rechazo}${comentario_lider ? '. ' + comentario_lider : ''}`;
+    
+    await pool.query(`
+      INSERT INTO comentarios_reportes (
+        id_reporte, id_usuario_lider, tipo_usuario_comentario, 
+        nombre_usuario, comentario, es_interno, usuario_ingreso
+      ) VALUES ($1, $2, 'lider', $3, $4, FALSE, $5)
+    `, [
+      reporteId,
+      liderId,
+      `${req.user.nombre} ${req.user.apellido}`,
+      comentarioRechazo,
+      `lider_${liderId}`
+    ]);
+
     res.json({
       success: true,
       message: 'Reporte rechazado exitosamente',
@@ -456,7 +497,7 @@ const rechazarReporte = async (req, res) => {
   }
 };
 
-// 5. VALIDAR RESOLUCIÓN DE TÉCNICO (Mantener igual)
+// 5. VALIDAR RESOLUCIÓN DE TÉCNICO - CON COMENTARIO SINCRONIZADO
 const validarResolucion = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -544,6 +585,24 @@ const validarResolucion = async (req, res) => {
       accionTomada,
       `lider_${liderId}`
     ]);
+
+    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    if (comentario_validacion && comentario_validacion.trim()) {
+      const comentarioValidacion = `${aprobado ? 'Resolución aprobada' : 'Resolución rechazada'}: ${comentario_validacion.trim()}`;
+      
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_usuario_lider, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'lider', $3, $4, FALSE, $5)
+      `, [
+        reporteId,
+        liderId,
+        `${req.user.nombre} ${req.user.apellido}`,
+        comentarioValidacion,
+        `lider_${liderId}`
+      ]);
+    }
 
     res.json({
       success: true,

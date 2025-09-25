@@ -1,4 +1,4 @@
-// backend/controllers/admin/reportesController.js - ACTUALIZADO CON FOTOS Y UBICACIÓN
+// backend/controllers/admin/reportesController.js - ACTUALIZADO CON COMENTARIOS DINÁMICOS
 const pool = require('../../models/db');
 
 // Obtener SOLO reportes "Aprobados por Líder" CON FOTOS Y UBICACIÓN (FLUJO CORRECTO)
@@ -44,7 +44,7 @@ const getReportes = async (req, res) => {
         z.nombre as zona,
         z.numero_zona,
         
-        -- NUEVO: Fotos del reporte (ARRAY de fotos)
+        -- Fotos del reporte (ARRAY de fotos)
         (
           SELECT JSON_AGG(
             JSON_BUILD_OBJECT(
@@ -63,14 +63,23 @@ const getReportes = async (req, res) => {
             AND ar.es_evidencia_inicial = TRUE
         ) as fotos,
         
-        -- NUEVO: Contador de fotos
+        -- Contador de fotos
         (
           SELECT COUNT(*) 
           FROM archivos_reporte ar 
           WHERE ar.id_reporte = r.id 
             AND ar.estado = TRUE
             AND ar.es_evidencia_inicial = TRUE
-        ) as total_fotos
+        ) as total_fotos,
+        
+        -- NUEVO: Contador de comentarios públicos
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count
         
       FROM reportes r
       LEFT JOIN estados_reporte er ON r.id_estado = er.id
@@ -188,7 +197,16 @@ const getReporteDetalle = async (req, res) => {
           FROM archivos_reporte ar 
           WHERE ar.id_reporte = r.id 
             AND ar.estado = TRUE
-        ) as fotos
+        ) as fotos,
+        
+        -- NUEVO: Contador de comentarios
+        (
+          SELECT COUNT(*) 
+          FROM comentarios_reportes cr 
+          WHERE cr.id_reporte = r.id 
+            AND cr.es_interno = FALSE 
+            AND cr.estado = TRUE
+        ) as comentarios_count
         
       FROM reportes r
       INNER JOIN estados_reporte er ON r.id_estado = er.id
@@ -233,10 +251,11 @@ const getReporteDetalle = async (req, res) => {
   }
 };
 
-// Asignar reporte a técnico Y cambiar estado automáticamente (FLUJO CORRECTO - sin cambios)
+// Asignar reporte a técnico Y cambiar estado automáticamente CON COMENTARIO DINÁMICO - ACTUALIZADO
 const asignarReporte = async (req, res) => {
   const { id } = req.params;
-  const { id_tecnico } = req.body;
+  const { id_tecnico, comentario_asignacion } = req.body; // NUEVO: Campo de comentario
+  const adminId = req.user?.id || 1; // Obtener ID del admin del JWT
   
   try {
     // Validar que el reporte esté en estado "Aprobado por Líder"
@@ -283,6 +302,11 @@ const asignarReporte = async (req, res) => {
       });
     }
     
+    // Obtener información del admin
+    const adminQuery = `SELECT nombre, apellido FROM administradores WHERE id = $1`;
+    const adminResult = await pool.query(adminQuery, [adminId]);
+    const admin = adminResult.rows[0] || { nombre: 'Administrador', apellido: 'Sistema' };
+
     // Actualizar reporte: asignar técnico Y cambiar estado a "Asignado"
     const updateQuery = `
       UPDATE reportes 
@@ -296,28 +320,27 @@ const asignarReporte = async (req, res) => {
       RETURNING *
     `;
     
-    const result = await pool.query(updateQuery, [id_tecnico, 'admin', id]);
+    const result = await pool.query(updateQuery, [id_tecnico, `admin_${adminId}`, id]);
     
-    // Crear registro de seguimiento
+    // NUEVO: Crear comentario dinámico de asignación
+    const comentarioFinal = comentario_asignacion || 
+      `Reporte asignado a ${tecnico.nombre} ${tecnico.apellido} del departamento ${tecnico.departamento}.`;
+
     try {
-      const seguimientoQuery = `
-        INSERT INTO seguimiento_reportes (
-          id_reporte, tipo_usuario_seguimiento,
-          estado_anterior, estado_nuevo, tipo_seguimiento,
-          comentario, accion_tomada, usuario_ingreso
-        ) VALUES ($1, 'admin', 
-          (SELECT id FROM estados_reporte WHERE nombre = 'Aprobado por Líder'),
-          (SELECT id FROM estados_reporte WHERE nombre = 'Asignado'),
-          'asignacion_tecnico', $2, 'Reporte asignado a técnico por administrador', $3)
-      `;
-      
-      await pool.query(seguimientoQuery, [
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_administrador, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'admin', $3, $4, FALSE, $5)
+      `, [
         id,
-        `Reporte asignado a ${tecnico.nombre} ${tecnico.apellido} del departamento ${tecnico.departamento}`,
-        'admin'
+        adminId,
+        `${admin.nombre} ${admin.apellido}`,
+        `📋 ASIGNACIÓN: ${comentarioFinal}`,
+        `admin_${adminId}`
       ]);
-    } catch (seguimientoError) {
-      console.warn('No se pudo registrar seguimiento:', seguimientoError.message);
+    } catch (comentarioError) {
+      console.warn('No se pudo crear comentario de asignación:', comentarioError.message);
     }
     
     res.json({
@@ -325,7 +348,8 @@ const asignarReporte = async (req, res) => {
       message: `Reporte asignado exitosamente a ${tecnico.nombre} ${tecnico.apellido}. Estado cambiado a "Asignado".`,
       reporte: result.rows[0],
       tecnico_asignado: `${tecnico.nombre} ${tecnico.apellido}`,
-      departamento: tecnico.departamento
+      departamento: tecnico.departamento,
+      comentario_agregado: true
     });
   } catch (error) {
     console.error('Error al asignar reporte:', error);
@@ -336,10 +360,11 @@ const asignarReporte = async (req, res) => {
   }
 };
 
-// Cambiar estado de reporte (VALIDACIÓN MEJORADA - sin cambios)
+// Cambiar estado de reporte CON COMENTARIO - ACTUALIZADO
 const cambiarEstado = async (req, res) => {
   const { id } = req.params;
-  const { id_estado } = req.body;
+  const { id_estado, comentario_cambio } = req.body; // NUEVO: Campo de comentario
+  const adminId = req.user?.id || 1;
   
   try {
     // Validar que el estado existe y es válido para admin
@@ -353,6 +378,11 @@ const cambiarEstado = async (req, res) => {
     }
     
     const nuevoEstado = estadoResult.rows[0].nombre;
+
+    // Obtener información del admin
+    const adminQuery = `SELECT nombre, apellido FROM administradores WHERE id = $1`;
+    const adminResult = await pool.query(adminQuery, [adminId]);
+    const admin = adminResult.rows[0] || { nombre: 'Administrador', apellido: 'Sistema' };
     
     const updateQuery = `
       UPDATE reportes 
@@ -364,16 +394,37 @@ const cambiarEstado = async (req, res) => {
       RETURNING *
     `;
     
-    const result = await pool.query(updateQuery, [id_estado, 'admin', id]);
+    const result = await pool.query(updateQuery, [id_estado, `admin_${adminId}`, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Reporte no encontrado' });
+    }
+
+    // NUEVO: Crear comentario dinámico de cambio de estado
+    if (comentario_cambio && comentario_cambio.trim()) {
+      try {
+        await pool.query(`
+          INSERT INTO comentarios_reportes (
+            id_reporte, id_administrador, tipo_usuario_comentario, 
+            nombre_usuario, comentario, es_interno, usuario_ingreso
+          ) VALUES ($1, $2, 'admin', $3, $4, FALSE, $5)
+        `, [
+          id,
+          adminId,
+          `${admin.nombre} ${admin.apellido}`,
+          `Estado cambiado a "${nuevoEstado}": ${comentario_cambio.trim()}`,
+          `admin_${adminId}`
+        ]);
+      } catch (comentarioError) {
+        console.warn('No se pudo crear comentario de cambio de estado:', comentarioError.message);
+      }
     }
     
     res.json({
       success: true,
       message: `Estado cambiado exitosamente a "${nuevoEstado}"`,
-      reporte: result.rows[0]
+      reporte: result.rows[0],
+      comentario_agregado: !!comentario_cambio
     });
   } catch (error) {
     console.error('Error al cambiar estado:', error);
@@ -384,15 +435,21 @@ const cambiarEstado = async (req, res) => {
   }
 };
 
-// Cambiar prioridad (sin cambios)
+// Cambiar prioridad CON COMENTARIO - ACTUALIZADO
 const cambiarPrioridad = async (req, res) => {
   const { id } = req.params;
-  const { prioridad } = req.body;
+  const { prioridad, comentario_prioridad } = req.body; // NUEVO: Campo de comentario
+  const adminId = req.user?.id || 1;
   
   try {
     if (!['Alta', 'Media', 'Baja'].includes(prioridad)) {
       return res.status(400).json({ error: 'Prioridad inválida' });
     }
+
+    // Obtener información del admin
+    const adminQuery = `SELECT nombre, apellido FROM administradores WHERE id = $1`;
+    const adminResult = await pool.query(adminQuery, [adminId]);
+    const admin = adminResult.rows[0] || { nombre: 'Administrador', apellido: 'Sistema' };
     
     const updateQuery = `
       UPDATE reportes 
@@ -404,16 +461,38 @@ const cambiarPrioridad = async (req, res) => {
       RETURNING *
     `;
     
-    const result = await pool.query(updateQuery, [prioridad, 'admin', id]);
+    const result = await pool.query(updateQuery, [prioridad, `admin_${adminId}`, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Reporte no encontrado' });
+    }
+
+    // NUEVO: Crear comentario dinámico de cambio de prioridad
+    const comentarioFinal = comentario_prioridad || 
+      `Prioridad cambiada a "${prioridad}" por criterios administrativos.`;
+
+    try {
+      await pool.query(`
+        INSERT INTO comentarios_reportes (
+          id_reporte, id_administrador, tipo_usuario_comentario, 
+          nombre_usuario, comentario, es_interno, usuario_ingreso
+        ) VALUES ($1, $2, 'admin', $3, $4, FALSE, $5)
+      `, [
+        id,
+        adminId,
+        `${admin.nombre} ${admin.apellido}`,
+        `Prioridad cambiada a "${prioridad}": ${comentarioFinal}`,
+        `admin_${adminId}`
+      ]);
+    } catch (comentarioError) {
+      console.warn('No se pudo crear comentario de prioridad:', comentarioError.message);
     }
     
     res.json({
       success: true,
       message: 'Prioridad cambiada exitosamente',
-      reporte: result.rows[0]
+      reporte: result.rows[0],
+      comentario_agregado: true
     });
   } catch (error) {
     console.error('Error al cambiar prioridad:', error);
@@ -451,7 +530,9 @@ const getDatosSelect = async (req, res) => {
         COUNT(*) FILTER (WHERE er.nombre = 'Aprobado por Líder') as reportes_pendientes_asignacion,
         COUNT(*) FILTER (WHERE er.nombre = 'Asignado') as reportes_asignados,
         COUNT(*) FILTER (WHERE er.nombre = 'En Proceso') as reportes_en_proceso,
-        COUNT(DISTINCT CASE WHEN er.nombre = 'Aprobado por Líder' AND r.prioridad = 'Alta' THEN r.id END) as reportes_criticos_sin_asignar
+        COUNT(DISTINCT CASE WHEN er.nombre = 'Aprobado por Líder' AND r.prioridad = 'Alta' THEN r.id END) as reportes_criticos_sin_asignar,
+        -- NUEVO: Estadísticas de comentarios
+        (SELECT COUNT(*) FROM comentarios_reportes WHERE estado = TRUE AND es_interno = FALSE) as total_comentarios_publicos
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       WHERE r.estado = TRUE
@@ -480,7 +561,8 @@ const getDatosSelect = async (req, res) => {
       estados: estadosResult.rows,
       prioridades: ['Alta', 'Media', 'Baja'],
       estadisticas: statsResult.rows[0],
-      departamentos: departamentosResult.rows
+      departamentos: departamentosResult.rows,
+      comentarios_enabled: true
     });
   } catch (error) {
     console.error('Error al obtener datos:', error);
@@ -493,9 +575,9 @@ const getDatosSelect = async (req, res) => {
 
 module.exports = {
   getReportes,
-  getReporteDetalle, // NUEVO
-  asignarReporte,
-  cambiarEstado,
-  cambiarPrioridad,
+  getReporteDetalle,      // NUEVO
+  asignarReporte,         // ✅ ACTUALIZADO CON COMENTARIOS DINÁMICOS
+  cambiarEstado,          // ✅ ACTUALIZADO CON COMENTARIOS DINÁMICOS
+  cambiarPrioridad,       // ✅ ACTUALIZADO CON COMENTARIOS DINÁMICOS
   getDatosSelect
 };
