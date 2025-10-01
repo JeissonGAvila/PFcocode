@@ -1,4 +1,4 @@
-// backend/index.js - ACTUALIZADO CON FIREBASE Y SERVICIO DE ARCHIVOS ESTÁTICOS
+// backend/index.js - LIMPIO SIN RUTAS ELIMINADAS
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -54,7 +54,7 @@ app.get('/api/debug/files', (req, res) => {
     res.json({
       success: true,
       message: `Archivos locales en uploads/reportes: ${files.length}`,
-      files: files.slice(0, 10), // Primeros 10 archivos
+      files: files.slice(0, 10),
       note: 'Los nuevos archivos se guardan en Firebase Storage'
     });
   } catch (error) {
@@ -88,8 +88,9 @@ app.get('/api/debug/firebase', (req, res) => {
   }
 });
 
-// RUTAS EXISTENTES
-// 1. Auth (existe)
+// ===================================
+// 🔐 RUTAS DE AUTENTICACIÓN
+// ===================================
 try {
   const authRoutes = require('./routes/auth/authRoutes');
   app.use('/api/auth', authRoutes);
@@ -98,7 +99,9 @@ try {
   console.log('❌ Error en auth:', error.message);
 }
 
-// 2. Administradores
+// ===================================
+// 🔧 RUTAS DE ADMINISTRACIÓN
+// ===================================
 try {
   const administradoresRoutes = require('./routes/admin/administradoresRoutes');
   app.use('/api/admin/administradores', administradoresRoutes);
@@ -107,7 +110,6 @@ try {
   console.log('❌ Error en administradores:', error.message);
 }
 
-// 3. Técnicos (existe)
 try {
   const tecnicosRoutes = require('./routes/admin/tecnicosRoutes');
   app.use('/api/admin/tecnicos', tecnicosRoutes);
@@ -116,7 +118,6 @@ try {
   console.log('❌ Error en técnicos:', error.message);
 }
 
-// 4. Reportes (existe)
 try {
   const reportesRoutes = require('./routes/admin/reportesRoutes');
   app.use('/api/admin/reportes', reportesRoutes);
@@ -125,7 +126,6 @@ try {
   console.log('❌ Error en reportes:', error.message);
 }
 
-// 5. Líderes COCODE (existe)
 try {
   const lideresRoutes = require('./routes/admin/lideresRoutes');
   app.use('/api/admin/lideres', lideresRoutes);
@@ -134,7 +134,6 @@ try {
   console.log('❌ Error en líderes:', error.message);
 }
 
-// 6. Ciudadanos (existe)
 try {
   const ciudadanosRoutes = require('./routes/admin/ciudadanosRoutes');
   app.use('/api/admin/ciudadanos', ciudadanosRoutes);
@@ -143,7 +142,6 @@ try {
   console.log('❌ Error en ciudadanos:', error.message);
 }
 
-// 7. Zonas Admin (gestión completa)
 try {
   const zonasAdminRoutes = require('./routes/admin/zonasRoutes');
   app.use('/api/admin/zonas', zonasAdminRoutes);
@@ -152,108 +150,102 @@ try {
   console.log('❌ Error en zonas admin:', error.message);
 }
 
-// 8. Tipos problema (existe)
-try {
-  const tiposProblemaRoutes = require('./routes/tiposProblemaRoutes');
-  app.use('/api/tipos-problema', tiposProblemaRoutes);
-  console.log('✅ Tipos problema routes cargadas');
-} catch (error) {
-  console.log('❌ Error en tipos problema:', error.message);
-}
-
-// 9. Zonas (existe - ruta original)
-try {
-  const zonasRoutes = require('./routes/zonasRoutes');
-  app.use('/api/zonas', zonasRoutes);
-  console.log('✅ Zonas routes cargadas');
-} catch (error) {
-  console.log('❌ Error en zonas:', error.message);
-}
-
-// Estados de reporte (ruta común)
-try {
-  const estadosReporteRoutes = require('./routes/estadosReporteRoutes');
-  app.use('/api/estados-reporte', estadosReporteRoutes);
-  console.log('✅ Estados Reporte routes cargadas');
-} catch (error) {
-  console.log('❌ Error en estados reporte:', error.message);
-}
-
 // ===================================
-// 🆕 PANELES ESPECÍFICOS POR USUARIO
+// 👥 RUTAS POR PANEL DE USUARIO
 // ===================================
 
-// 10. PANEL LÍDER COCODE
+// PANEL LÍDER COCODE
 try {
   const liderReportesRoutes = require('./routes/lider/reportesRoutes');
   app.use('/api/lider/reportes', liderReportesRoutes);
-  console.log('✅ Líder Reportes routes cargadas - PANEL LÍDER ACTIVO');
+  console.log('✅ Líder Reportes routes - PANEL LÍDER ACTIVO');
 } catch (error) {
   console.log('❌ Error en líder reportes:', error.message);
 }
 
-// 11. PANEL TÉCNICO - CORREGIDO CON AUTENTICACIÓN
+// PANEL TÉCNICO
 try {
   const tecnicoReportesRoutes = require('./routes/tecnico/reportesRoutes');
   app.use('/api/tecnico/reportes', tecnicoReportesRoutes);
-  console.log('✅ Técnico Reportes routes cargadas - PANEL TÉCNICO CON AUTENTICACIÓN');
+  console.log('✅ Técnico Reportes routes - PANEL TÉCNICO ACTIVO');
 } catch (error) {
   console.log('❌ Error en técnico reportes:', error.message);
-  console.log('❌ Stack trace completo:', error.stack);
+  console.log('❌ Stack trace:', error.stack);
 }
 
-// 12. PANEL CIUDADANO - NUEVO CON GEOLOCALIZACIÓN Y FIREBASE
+// PANEL CIUDADANO
 try {
   const ciudadanoReportesRoutes = require('./routes/ciudadano/reportesRoutes');
   app.use('/api/ciudadano/reportes', ciudadanoReportesRoutes);
-  console.log('✅ Ciudadano Reportes routes cargadas - PANEL CIUDADANO CON GPS Y FIREBASE');
+  console.log('✅ Ciudadano Reportes routes - PANEL CIUDADANO CON GPS Y FIREBASE');
 } catch (error) {
   console.log('❌ Error en ciudadano reportes:', error.message);
-  console.log('❌ Stack trace completo:', error.stack);
+  console.log('❌ Stack trace:', error.stack);
 }
 
-// 13. COMENTARIOS - NUEVO SISTEMA UNIVERSAL
+// ===================================
+// 💬 SISTEMA DE COMENTARIOS
+// ===================================
 try {
   const comentariosRoutes = require('./routes/comentariosRoute');
   app.use('/api/reportes', comentariosRoutes);
-  console.log('✅ Comentarios routes cargadas - SISTEMA UNIVERSAL DE COMENTARIOS');
+  console.log('✅ Comentarios routes - SISTEMA UNIVERSAL DE COMENTARIOS');
 } catch (error) {
   console.log('❌ Error en comentarios:', error.message);
 }
 
-// Manejo de errores
+// ===================================
+// ⚠️ MANEJO DE ERRORES GLOBAL
+// ===================================
 app.use((error, req, res, next) => {
-  console.error('💥 ERROR:', error);
+  console.error('💥 ERROR NO MANEJADO:', error);
   res.status(500).json({ 
     error: 'Error interno del servidor',
     message: error.message
   });
 });
 
-// Iniciar servidor
+// ===================================
+// 🚀 INICIAR SERVIDOR
+// ===================================
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log(`🌐 Prueba: http://localhost:${PORT}/api/test`);
-  console.log(`🔥 Firebase Test: http://localhost:${PORT}/api/debug/firebase`);
-  console.log('📋 Rutas disponibles:');
-  console.log('   - /api/auth/*');
-  console.log('   - /api/admin/administradores/*');
-  console.log('   - /api/admin/tecnicos/*');
-  console.log('   - /api/admin/reportes/*');
-  console.log('   - /api/admin/lideres/*');
-  console.log('   - /api/admin/ciudadanos/*');
-  console.log('   - /api/admin/zonas/*');
-  console.log('   - /api/tipos-problema/*');
-  console.log('   - /api/zonas/*');
-  console.log('   - /api/estados-reporte/*');
-  console.log('   ✅ - /api/lider/reportes/* ← PANEL LÍDER');
-  console.log('   🔧 - /api/tecnico/reportes/* ← PANEL TÉCNICO CORREGIDO');
-  console.log('   📍 - /api/ciudadano/reportes/* ← PANEL CIUDADANO CON GPS + FIREBASE');
-  console.log('   💬 - /api/reportes/*/comentarios ← SISTEMA DE COMENTARIOS UNIVERSAL');
-  console.log('   📁 - /uploads/* ← SERVICIO DE ARCHIVOS ESTÁTICOS (LEGACY)');
-  console.log('   🐛 - /api/debug/files ← DEBUG DE ARCHIVOS LOCALES');
-  console.log('   🔥 - /api/debug/firebase ← DEBUG DE FIREBASE');
-  console.log('✅ SERVIDOR FUNCIONANDO - 4 PANELES COMPLETOS + FIREBASE + ARCHIVOS + COMENTARIOS');
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`🚀 SERVIDOR COCODE FUNCIONANDO EN PUERTO ${PORT}`);
+  console.log(`${'='.repeat(60)}\n`);
+  
+  console.log('🌐 ENDPOINTS DISPONIBLES:\n');
+  
+  console.log('📍 PRUEBAS:');
+  console.log(`   → http://localhost:${PORT}/api/test`);
+  console.log(`   → http://localhost:${PORT}/api/debug/firebase`);
+  console.log(`   → http://localhost:${PORT}/api/debug/files\n`);
+  
+  console.log('🔐 AUTENTICACIÓN:');
+  console.log('   → POST   /api/auth/login');
+  console.log('   → POST   /api/auth/logout');
+  console.log('   → GET    /api/auth/verify');
+  console.log('   → GET    /api/auth/me\n');
+  
+  console.log('🔧 ADMINISTRACIÓN:');
+  console.log('   → GET    /api/admin/administradores');
+  console.log('   → GET    /api/admin/tecnicos');
+  console.log('   → GET    /api/admin/reportes');
+  console.log('   → GET    /api/admin/lideres');
+  console.log('   → GET    /api/admin/ciudadanos');
+  console.log('   → GET    /api/admin/zonas\n');
+  
+  console.log('👥 PANELES DE USUARIO:');
+  console.log('   → /api/lider/reportes/*     ← Panel Líder COCODE');
+  console.log('   → /api/tecnico/reportes/*   ← Panel Técnico');
+  console.log('   → /api/ciudadano/reportes/* ← Panel Ciudadano + GPS\n');
+  
+  console.log('💬 SISTEMA:');
+  console.log('   → GET/POST /api/reportes/:id/comentarios');
+  console.log('   → /uploads/*  ← Archivos estáticos (legacy)\n');
+  
+  console.log(`${'='.repeat(60)}`);
+  console.log('✅ SERVIDOR LISTO - 4 PANELES + FIREBASE + COMENTARIOS');
+  console.log(`${'='.repeat(60)}\n`);
 });
