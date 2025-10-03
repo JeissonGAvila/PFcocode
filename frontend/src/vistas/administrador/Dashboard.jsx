@@ -59,6 +59,8 @@ import GestionCiudadanos from '../../components/admin/GestionCiudadanos.jsx';
 import GestionLideres from '../../components/admin/GestionLideres.jsx';
 import GestionAdministradores from '../../components/admin/GestionAdministradores.jsx';
 import GestionZonas from '../../components/admin/GestionZonas.jsx';
+import GestionCocode from '../../components/admin/GestionCocode.jsx';
+import GestionSubcocode from '../../components/admin/GestionSubcocode.jsx';
 import reportesService from '../../services/admin/reportesService.js';
 
 const DashboardAdmin = () => {
@@ -180,13 +182,15 @@ const DashboardAdmin = () => {
     }));
   };
 
-  // Configuración de tabs principales responsiva
-  const mainTabs = [
-    { label: isMobile ? "Dashboard" : "Dashboard Principal", icon: <DashboardIcon /> },
-    { label: isMobile ? "Reportes" : "Gestión de Reportes", icon: <ReporteIcon /> },
-    { label: isMobile ? "Usuarios" : "Gestión de Usuarios", icon: <PeopleIcon /> },
-    { label: isMobile ? "Estadísticas" : "Reportes y Estadísticas", icon: <TrendingIcon /> }
-  ];
+// Configuración de tabs principales responsiva
+const mainTabs = [
+  { label: isMobile ? "Dashboard" : "Dashboard Principal", icon: <DashboardIcon /> },
+  { label: isMobile ? "Reportes" : "Gestión de Reportes", icon: <ReporteIcon /> },
+  { label: isMobile ? "Usuarios" : "Gestión de Usuarios", icon: <PeopleIcon /> },
+  { label: isMobile ? "COCODEs" : "Gestión de COCODEs", icon: <LocationIcon /> },
+  { label: isMobile ? "Sectores" : "Gestión de Sectores", icon: <LocationIcon /> },
+  { label: isMobile ? "Estadísticas" : "Reportes y Estadísticas", icon: <TrendingIcon /> }
+];
 
   // Configuración de sub-tabs de usuarios responsiva
   const userTabs = [
@@ -810,7 +814,7 @@ const DashboardAdmin = () => {
                     fontSize: { xs: '0.9rem', sm: '1rem' },
                     minHeight: { xs: 80, sm: 64 }
                   }}
-                  onClick={() => setTabValue(3)}
+                  onClick={() => setTabValue(5)}
                 >
                   {isMobile ? "Estadísticas" : "Reportes y Estadísticas"}
                 </Button>
@@ -968,9 +972,30 @@ const DashboardAdmin = () => {
             )}
           </Box>
         )}
-
-        {/* TAB 3: Reportes y Estadísticas - RESPONSIVO */}
+        
+        {/* TAB 3: Gestión de COCODEs */}
         {tabValue === 3 && (
+          <Box>
+            <Typography variant={isMobile ? "h6" : "h5"} gutterBottom>
+              Gestión de COCODEs
+            </Typography>
+            <GestionCocode />
+          </Box>
+        )}
+
+        {/* TAB 4: Gestión de Sectores/SUBCOCODEs */}
+        {tabValue === 4 && (
+          <Box>
+            <Typography variant={isMobile ? "h6" : "h5"} gutterBottom>
+              Gestión de Sectores/SUBCOCODEs
+            </Typography>
+            <GestionSubcocode />
+          </Box>
+        )}
+
+        {/* TAB 5: Reportes y Estadísticas - RESPONSIVO */}
+        {tabValue === 5 && (
+
           <Box>
             <Typography 
               variant={isMobile ? "h6" : "h5"} 

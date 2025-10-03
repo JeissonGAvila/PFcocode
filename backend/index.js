@@ -150,6 +150,21 @@ try {
   console.log('❌ Error en zonas admin:', error.message);
 }
 
+try {
+  const cocodeRoutes = require('./routes/admin/cocodeRoutes');
+  app.use('/api/admin/cocode', cocodeRoutes);
+  console.log('✅ COCODE routes cargadas');
+} catch (error) {
+  console.log('❌ Error en cocode:', error.message);
+}
+
+try {
+  const subcocodeRoutes = require('./routes/admin/subcocodeRoutes');
+  app.use('/api/admin/subcocode', subcocodeRoutes);
+  console.log('✅ SUBCOCODE routes cargadas');
+} catch (error) {
+  console.log('❌ Error en subcocode:', error.message);
+}
 // ===================================
 // 👥 RUTAS POR PANEL DE USUARIO
 // ===================================
