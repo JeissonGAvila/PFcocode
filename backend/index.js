@@ -1,4 +1,4 @@
-// backend/index.js - LIMPIO SIN RUTAS ELIMINADAS
+// backend/index.js - PRODUCCIÓN CON FIREBASE Y CORS
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -10,11 +10,37 @@ const app = express();
 const { initializeFirebase } = require('./config/firebase');
 initializeFirebase();
 
-// Middlewares globales
-app.use(cors());
+// ========================================
+// 🌐 CONFIGURACIÓN CORS PARA PRODUCCIÓN
+// ========================================
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como mobile apps o curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Aplicar CORS y middlewares
+app.use(cors(corsOptions));
 app.use(express.json());
 
-console.log('🔍 INICIANDO SERVIDOR CON FIREBASE...');
+console.log('🔐 CORS configurado para:', allowedOrigins);
+console.log('📍 Modo:', process.env.NODE_ENV || 'development');
+console.log('🔗 URL Base:', process.env.BASE_URL || 'http://localhost:3003');
 
 // ===================================
 // SERVIR ARCHIVOS ESTÁTICOS (FOTOS) - LEGACY PARA MIGRACIÓN
@@ -31,7 +57,9 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'Servidor funcionando correctamente con Firebase',
     timestamp: new Date().toISOString(),
-    firebase: 'enabled'
+    firebase: 'enabled',
+    environment: process.env.NODE_ENV || 'development',
+    baseUrl: process.env.BASE_URL || 'http://localhost:3003'
   });
 });
 
@@ -165,6 +193,7 @@ try {
 } catch (error) {
   console.log('❌ Error en subcocode:', error.message);
 }
+
 // ===================================
 // 👥 RUTAS POR PANEL DE USUARIO
 // ===================================
@@ -223,19 +252,20 @@ app.use((error, req, res, next) => {
 // ===================================
 // 🚀 INICIAR SERVIDOR
 // ===================================
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 
 app.listen(PORT, () => {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`🚀 SERVIDOR COCODE FUNCIONANDO EN PUERTO ${PORT}`);
+  console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
   console.log(`${'='.repeat(60)}\n`);
   
   console.log('🌐 ENDPOINTS DISPONIBLES:\n');
   
-  console.log('📍 PRUEBAS:');
-  console.log(`   → http://localhost:${PORT}/api/test`);
-  console.log(`   → http://localhost:${PORT}/api/debug/firebase`);
-  console.log(`   → http://localhost:${PORT}/api/debug/files\n`);
+  console.log('🔍 PRUEBAS:');
+  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/test`);
+  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/debug/firebase`);
+  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/debug/files\n`);
   
   console.log('🔐 AUTENTICACIÓN:');
   console.log('   → POST   /api/auth/login');

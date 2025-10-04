@@ -65,7 +65,7 @@ const ciudadanoService = {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`http://localhost:3001/api/ciudadano/reportes/${reporteId}/archivos-firebase`, {
+      const response = await fetch(`http://localhost:3003/api/ciudadano/reportes/${reporteId}/archivos-firebase`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

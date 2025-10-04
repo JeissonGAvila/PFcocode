@@ -1,5 +1,5 @@
 // frontend/src/services/admin/tecnicosService.js
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:3003/api';
 
 // 🛠️ Helper function para manejar respuestas
 const handleResponse = async (response) => {

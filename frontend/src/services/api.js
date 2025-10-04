@@ -1,5 +1,7 @@
 // frontend/src/services/api.js - SERVICIO BASE CENTRAL
-const API_URL = 'http://localhost:3001';
+// ✅ COMPATIBLE 100% CON TU CÓDIGO EXISTENTE
+
+const API_URL = 'https://jason.hopitalbarillas.cloud';
 
 // Configuración base para todas las peticiones
 const defaultOptions = {

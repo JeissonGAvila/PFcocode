@@ -93,7 +93,7 @@ const login = async (req, res) => {
       console.log('🔍 Buscando en tabla ciudadanos_colaboradores...');
       const ciudadanoQuery = `
         SELECT c.id, c.nombre, c.apellido, c.correo, c.contrasena, c.dpi,
-               c.id_zona, c.id_subcocode_area, c.direccion,
+               c.id_zona, c.id_subcocode, c.direccion,
                z.nombre as nombre_zona
         FROM ciudadanos_colaboradores c
         LEFT JOIN zonas z ON c.id_zona = z.id

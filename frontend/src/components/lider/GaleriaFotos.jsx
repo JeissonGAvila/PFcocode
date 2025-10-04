@@ -65,7 +65,7 @@ const GaleriaFotos = ({ fotos = [], maxHeight = 200 }) => {
     // Si es una ruta relativa, construir la URL completa
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
-      : 'http://localhost:3001';
+      : '';
     
     // Asegurar que la ruta empiece con /
     const ruta = foto.url_archivo.startsWith('/') 

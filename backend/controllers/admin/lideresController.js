@@ -1,4 +1,4 @@
-// backend/controllers/admin/lideresController.js
+// backend/controllers/admin/lideresController.js - VERSIÓN FINAL SIMPLIFICADA
 const pool = require('../../models/db');
 const bcrypt = require('bcrypt');
 
@@ -13,30 +13,29 @@ const getLideres = async (req, res) => {
         u.correo,
         u.telefono,
         u.dpi,
-        u.tipo_lider,
-        u.tipo_lider as cargo,  -- ✅ CORREGIDO: usar tipo_lider como cargo
-        u.fecha_ingreso as fecha_eleccion,  -- ✅ CORREGIDO: usar fecha_ingreso
-        u.fecha_ingreso as periodo_inicio,   -- ✅ CORREGIDO: usar fecha_ingreso
-        NULL as periodo_fin,  -- ✅ CORREGIDO: columna no existe, usar NULL
+        u.id_subcocode,
         u.ultimo_acceso,
         u.estado,
         u.fecha_ingreso,
-        CASE 
-          WHEN u.tipo_lider = 'principal' THEN c.nombre
-          WHEN u.tipo_lider = 'subcocode' THEN s.nombre
-        END as cocode_asignado,
-        CASE 
-          WHEN u.tipo_lider = 'principal' THEN z.nombre
-          WHEN u.tipo_lider = 'subcocode' THEN z2.nombre
-        END as zona_nombre
+        
+        -- Información del Sub-COCODE
+        s.nombre as subcocode_nombre,
+        s.sector as subcocode_sector,
+        
+        -- Información del COCODE padre
+        c.nombre as subcocode_cocode_principal,
+        c.id as cocode_id,
+        
+        -- Información de la zona
+        z.nombre as zona_nombre,
+        z.id as zona_id
+        
       FROM usuarios u
-      LEFT JOIN cocode c ON u.id_cocode_principal = c.id
       LEFT JOIN subcocode s ON u.id_subcocode = s.id
+      LEFT JOIN cocode c ON s.id_cocode_principal = c.id
       LEFT JOIN zonas z ON c.id_zona = z.id
-      LEFT JOIN cocode c2 ON s.id_cocode_principal = c2.id
-      LEFT JOIN zonas z2 ON c2.id_zona = z2.id
       WHERE u.estado = TRUE
-      ORDER BY u.nombre, u.apellido
+      ORDER BY z.nombre, c.nombre, s.nombre, u.nombre, u.apellido
     `;
     
     const result = await pool.query(query);
@@ -56,16 +55,42 @@ const getLideres = async (req, res) => {
 // Crear nuevo líder COCODE
 const createLider = async (req, res) => {
   const { 
-    nombre, apellido, correo, contrasena, telefono, dpi,
-    tipo_lider, cargo, fecha_eleccion, periodo_inicio, periodo_fin,
-    id_cocode_principal, id_subcocode
+    nombre, 
+    apellido, 
+    correo, 
+    contrasena, 
+    telefono, 
+    dpi,
+    id_subcocode
   } = req.body;
 
   try {
     // Validaciones básicas
-    if (!nombre || !apellido || !correo || !contrasena || !tipo_lider) {
+    if (!nombre || !apellido || !correo || !contrasena) {
       return res.status(400).json({ 
-        error: 'Nombre, apellido, correo, contraseña y tipo de líder son requeridos' 
+        error: 'Nombre, apellido, correo y contraseña son requeridos' 
+      });
+    }
+
+    // Validar que id_subcocode sea obligatorio
+    if (!id_subcocode) {
+      return res.status(400).json({ 
+        error: 'Debe seleccionar un Sub-COCODE (sector) específico' 
+      });
+    }
+
+    // Validar contraseña
+    if (contrasena.length < 6) {
+      return res.status(400).json({ 
+        error: 'La contraseña debe tener al menos 6 caracteres' 
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+      return res.status(400).json({ 
+        error: 'El formato del correo electrónico no es válido' 
       });
     }
 
@@ -79,16 +104,25 @@ const createLider = async (req, res) => {
       });
     }
 
-    // Validar asignación según tipo de líder
-    if (tipo_lider === 'principal' && !id_cocode_principal) {
-      return res.status(400).json({ 
-        error: 'Debe seleccionar un COCODE principal' 
-      });
+    // Validar DPI único si se proporciona
+    if (dpi) {
+      const dpiQuery = 'SELECT id FROM usuarios WHERE dpi = $1 AND estado = TRUE';
+      const dpiResult = await pool.query(dpiQuery, [dpi]);
+      
+      if (dpiResult.rows.length > 0) {
+        return res.status(400).json({ 
+          error: 'Ya existe un líder con este DPI' 
+        });
+      }
     }
 
-    if (tipo_lider === 'subcocode' && !id_subcocode) {
+    // Verificar que el Sub-COCODE existe
+    const subcocodeQuery = 'SELECT id FROM subcocode WHERE id = $1 AND estado = TRUE';
+    const subcocodeResult = await pool.query(subcocodeQuery, [id_subcocode]);
+    
+    if (subcocodeResult.rows.length === 0) {
       return res.status(400).json({ 
-        error: 'Debe seleccionar un Sub-COCODE' 
+        error: 'El Sub-COCODE seleccionado no existe' 
       });
     }
 
@@ -96,23 +130,37 @@ const createLider = async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
 
-    // ✅ CORREGIDO: Insertar solo columnas que existen
+    // Insertar líder
     const insertQuery = `
       INSERT INTO usuarios (
-        nombre, apellido, correo, contrasena, telefono, dpi,
-        tipo_lider, id_cocode_principal, id_subcocode, 
-        es_lider_principal, puede_aprobar_reportes, usuario_ingreso
+        nombre, 
+        apellido, 
+        correo, 
+        contrasena, 
+        telefono, 
+        dpi,
+        tipo_lider,
+        id_subcocode,
+        id_cocode_principal,
+        es_lider_principal,
+        puede_aprobar_reportes, 
+        usuario_ingreso
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING id, nombre, apellido, correo, tipo_lider
+      RETURNING id, nombre, apellido, correo
     `;
 
     const values = [
-      nombre, apellido, correo, hashedPassword, telefono, dpi,
-      tipo_lider, 
-      tipo_lider === 'principal' ? id_cocode_principal : null,
-      tipo_lider === 'subcocode' ? id_subcocode : null,
-      tipo_lider === 'principal', // es_lider_principal
-      true, // puede_aprobar_reportes
+      nombre, 
+      apellido, 
+      correo, 
+      hashedPassword, 
+      telefono || null, 
+      dpi || null,
+      'subcocode', // Siempre es líder de subcocode
+      id_subcocode,
+      null, // id_cocode_principal siempre NULL
+      false, // es_lider_principal siempre FALSE
+      true, // puede_aprobar_reportes siempre TRUE
       req.user?.correo || 'admin'
     ];
 
@@ -120,16 +168,16 @@ const createLider = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Líder COCODE creado exitosamente',
+      message: 'Líder de sector creado exitosamente',
       lider: result.rows[0]
     });
 
   } catch (error) {
     console.error('Error al crear líder:', error);
     
-    if (error.code === '23505') { // Violación de unicidad
+    if (error.code === '23505') {
       return res.status(400).json({ 
-        error: 'Ya existe un líder con este correo electrónico' 
+        error: 'Ya existe un líder con este correo electrónico o DPI' 
       });
     }
     
@@ -143,16 +191,34 @@ const createLider = async (req, res) => {
 const updateLider = async (req, res) => {
   const { id } = req.params;
   const { 
-    nombre, apellido, correo, telefono, dpi,
-    tipo_lider, cargo, fecha_eleccion, periodo_inicio, periodo_fin,
-    id_cocode_principal, id_subcocode
+    nombre, 
+    apellido, 
+    correo, 
+    telefono, 
+    dpi,
+    id_subcocode
   } = req.body;
 
   try {
     // Validaciones básicas
-    if (!nombre || !apellido || !correo || !tipo_lider) {
+    if (!nombre || !apellido || !correo) {
       return res.status(400).json({ 
-        error: 'Nombre, apellido, correo y tipo de líder son requeridos' 
+        error: 'Nombre, apellido y correo son requeridos' 
+      });
+    }
+
+    // Validar que id_subcocode sea obligatorio
+    if (!id_subcocode) {
+      return res.status(400).json({ 
+        error: 'Debe seleccionar un Sub-COCODE (sector)' 
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+      return res.status(400).json({ 
+        error: 'El formato del correo electrónico no es válido' 
       });
     }
 
@@ -166,7 +232,19 @@ const updateLider = async (req, res) => {
       });
     }
 
-    // ✅ CORREGIDO: Actualizar solo columnas que existen
+    // Validar DPI único si se proporciona
+    if (dpi) {
+      const dpiQuery = 'SELECT id FROM usuarios WHERE dpi = $1 AND id != $2 AND estado = TRUE';
+      const dpiResult = await pool.query(dpiQuery, [dpi, id]);
+      
+      if (dpiResult.rows.length > 0) {
+        return res.status(400).json({ 
+          error: 'Ya existe otro líder con este DPI' 
+        });
+      }
+    }
+
+    // Actualizar líder
     const updateQuery = `
       UPDATE usuarios SET
         nombre = $1,
@@ -174,22 +252,26 @@ const updateLider = async (req, res) => {
         correo = $3,
         telefono = $4,
         dpi = $5,
-        tipo_lider = $6,
-        id_cocode_principal = $7,
-        id_subcocode = $8,
+        id_subcocode = $6,
+        tipo_lider = $7,
+        id_cocode_principal = $8,
         es_lider_principal = $9,
         fecha_modifica = NOW(),
         usuario_modifica = $10
       WHERE id = $11 AND estado = TRUE
-      RETURNING id, nombre, apellido, correo, tipo_lider
+      RETURNING id, nombre, apellido, correo
     `;
 
     const values = [
-      nombre, apellido, correo, telefono, dpi,
-      tipo_lider,
-      tipo_lider === 'principal' ? id_cocode_principal : null,
-      tipo_lider === 'subcocode' ? id_subcocode : null,
-      tipo_lider === 'principal', // es_lider_principal
+      nombre, 
+      apellido, 
+      correo, 
+      telefono || null, 
+      dpi || null,
+      id_subcocode,
+      'subcocode', // Siempre subcocode
+      null, // id_cocode_principal siempre NULL
+      false, // es_lider_principal siempre FALSE
       req.user?.correo || 'admin',
       id
     ];
@@ -228,7 +310,6 @@ const updateLiderPassword = async (req, res) => {
       });
     }
 
-    // Hashear nueva contraseña
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(nueva_contrasena, saltRounds);
 
@@ -291,7 +372,6 @@ const deleteLider = async (req, res) => {
       });
     }
 
-    // Desactivar líder
     const deleteQuery = `
       UPDATE usuarios SET
         estado = FALSE,
@@ -325,43 +405,41 @@ const deleteLider = async (req, res) => {
   }
 };
 
-// Obtener datos para selects (COCODE, Sub-COCODE, etc.)
+// Obtener datos para selects
 const getDatosSelect = async (req, res) => {
   try {
-    // ✅ CORREGIDO: Quitar c.es_principal que no existe
+    // Obtener COCODE principales con su zona
     const cocodeQuery = `
-      SELECT c.id, c.nombre, z.nombre as zona_nombre
+      SELECT c.id, c.nombre, z.nombre as zona_nombre, z.id as zona_id
       FROM cocode c
       LEFT JOIN zonas z ON c.id_zona = z.id
       WHERE c.estado = TRUE
-      ORDER BY c.nombre
+      ORDER BY z.nombre, c.nombre
     `;
     const cocodeResult = await pool.query(cocodeQuery);
 
-    // Obtener Sub-COCODE
+    // Obtener Sub-COCODE con su COCODE principal y zona
     const subcocodeQuery = `
-      SELECT s.id, s.nombre, s.sector, c.nombre as cocode_principal
+      SELECT 
+        s.id, 
+        s.nombre, 
+        s.sector, 
+        c.nombre as cocode_principal,
+        c.id as cocode_principal_id,
+        z.nombre as zona_nombre,
+        z.id as zona_id
       FROM subcocode s
       LEFT JOIN cocode c ON s.id_cocode_principal = c.id
+      LEFT JOIN zonas z ON c.id_zona = z.id
       WHERE s.estado = TRUE
-      ORDER BY s.nombre
+      ORDER BY z.nombre, c.nombre, s.nombre
     `;
     const subcocodeResult = await pool.query(subcocodeQuery);
 
     res.json({
       success: true,
       cocode_principales: cocodeResult.rows,
-      sub_cocode: subcocodeResult.rows,
-      tipos_lider: ['principal', 'subcocode'],
-      cargos_disponibles: [
-        'Presidente/a',
-        'Vicepresidente/a', 
-        'Secretario/a',
-        'Tesorero/a',
-        'Vocal I',
-        'Vocal II',
-        'Vocal III'
-      ]
+      sub_cocode: subcocodeResult.rows
     });
 
   } catch (error) {

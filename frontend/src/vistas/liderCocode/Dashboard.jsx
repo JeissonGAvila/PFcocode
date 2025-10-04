@@ -185,7 +185,7 @@ const DashboardLider = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/lider/reportes/pendientes', {
+      const response = await fetch('http://localhost:3003/api/lider/reportes/pendientes', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -211,7 +211,7 @@ const DashboardLider = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/lider/reportes/zona?limit=10', {
+      const response = await fetch('http://localhost:3003/api/lider/reportes/zona?limit=10', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

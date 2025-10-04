@@ -65,7 +65,7 @@ const GaleriaFotosAdmin = ({ fotos = [], maxHeight = 200, titulo = "Fotos del Re
     
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
-      : 'http://localhost:3001';
+      : 'http://localhost:3003';
     
     const ruta = foto.url_archivo.startsWith('/') 
       ? foto.url_archivo 
