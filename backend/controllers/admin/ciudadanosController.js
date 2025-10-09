@@ -1,19 +1,67 @@
 // backend/controllers/admin/ciudadanosController.js
 const pool = require('../../models/db');
+const bcrypt = require('bcrypt');
 
-// Obtener todos los ciudadanos (SIN mostrar contraseñas)
+// 🔧 NUEVO: Obtener datos para los selects (COCODE y Sub-COCODE)
+const getDatosSelect = async (req, res) => {
+  try {
+    // Obtener todos los COCODEs con su zona
+    const cocodesQuery = `
+      SELECT 
+        c.id,
+        c.nombre,
+        c.id_zona,
+        z.nombre as nombre_zona
+      FROM cocode c
+      INNER JOIN zonas z ON c.id_zona = z.id
+      WHERE c.estado = TRUE
+      ORDER BY c.nombre
+    `;
+    const cocodesResult = await pool.query(cocodesQuery);
+
+    // Obtener todos los Sub-COCODEs
+    const subcocodesQuery = `
+      SELECT 
+        s.id,
+        s.nombre,
+        s.id_cocode_principal as cocode_principal_id,
+        s.sector,
+        c.nombre as nombre_cocode,
+        c.id_zona,
+        z.nombre as nombre_zona
+      FROM subcocode s
+      INNER JOIN cocode c ON s.id_cocode_principal = c.id
+      INNER JOIN zonas z ON c.id_zona = z.id
+      WHERE s.estado = TRUE
+      ORDER BY s.nombre
+    `;
+    const subcocodesResult = await pool.query(subcocodesQuery);
+
+    res.json({
+      cocodes: cocodesResult.rows,
+      subcodes: subcocodesResult.rows
+    });
+  } catch (error) {
+    console.error('Error al obtener datos para selects:', error);
+    res.status(500).json({ error: 'Error al obtener datos para selects' });
+  }
+};
+
+// Obtener todos los ciudadanos CON JOINS para mostrar zona y subcocode
 const getCiudadanos = async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
         c.id, c.nombre, c.apellido, c.correo, c.telefono, c.dpi,
-        c.direccion, c.id_zona, c.id_subcocode_area,
+        c.direccion, c.id_zona, c.id_subcocode,
         c.fecha_ingreso, c.usuario_ingreso, c.fecha_modifica, c.usuario_modifica,
         z.nombre as nombre_zona,
-        s.nombre as nombre_subcocode
+        s.nombre as nombre_subcocode,
+        co.nombre as nombre_cocode
       FROM ciudadanos_colaboradores c
       LEFT JOIN zonas z ON c.id_zona = z.id
-      LEFT JOIN subcocode s ON c.id_subcocode_area = s.id
+      LEFT JOIN subcocode s ON c.id_subcocode = s.id
+      LEFT JOIN cocode co ON s.id_cocode_principal = co.id
       WHERE c.estado = TRUE 
       ORDER BY c.nombre, c.apellido
     `);
@@ -37,7 +85,7 @@ const getCiudadanosPorZona = async (req, res) => {
         s.nombre as nombre_subcocode
       FROM ciudadanos_colaboradores c
       LEFT JOIN zonas z ON c.id_zona = z.id
-      LEFT JOIN subcocode s ON c.id_subcocode_area = s.id
+      LEFT JOIN subcocode s ON c.id_subcocode = s.id
       WHERE c.id_zona = $1 AND c.estado = TRUE 
       ORDER BY c.nombre, c.apellido
     `, [zonaId]);
@@ -49,68 +97,138 @@ const getCiudadanosPorZona = async (req, res) => {
   }
 };
 
-// Crear un nuevo ciudadano
+// 🔥 CREAR CIUDADANO - SIMPLIFICADO (igual que líderes)
 const createCiudadano = async (req, res) => {
   const { 
-    nombre, apellido, correo, contrasena, telefono, dpi,
-    direccion, id_zona, id_subcocode_area, 
+    nombre, 
+    apellido, 
+    correo, 
+    contrasena, 
+    telefono, 
+    dpi,
+    direccion, 
+    id_subcocode,  // 👈 SOLO recibimos el subcocode
     usuario_ingreso 
   } = req.body;
   
   try {
     // Validaciones básicas
-    if (!nombre || !apellido || !correo || !contrasena || !dpi) {
+    if (!nombre || !apellido || !correo || !contrasena) {
       return res.status(400).json({ 
-        error: 'Campos obligatorios: nombre, apellido, correo, contraseña y DPI' 
+        error: 'Campos obligatorios: nombre, apellido, correo y contraseña' 
       });
     }
 
-    // TODO: En producción, hashear la contraseña antes de guardar
-    // const bcrypt = require('bcrypt');
-    // const hashedPassword = await bcrypt.hash(contrasena, 10);
+    if (!id_subcocode) {
+      return res.status(400).json({ 
+        error: 'Debes seleccionar un sector (Sub-COCODE)' 
+      });
+    }
+
+    if (contrasena.length < 6) {
+      return res.status(400).json({ 
+        error: 'La contraseña debe tener al menos 6 caracteres' 
+      });
+    }
+
+    // 🔒 Hashear la contraseña
+    const hashedPassword = await bcrypt.hash(contrasena, 10);
+
+    // 🔍 Obtener la zona automáticamente desde el subcocode seleccionado
+    const zonaQuery = `
+      SELECT c.id_zona 
+      FROM subcocode s
+      INNER JOIN cocode c ON s.id_cocode_principal = c.id
+      WHERE s.id = $1
+    `;
+    const zonaResult = await pool.query(zonaQuery, [id_subcocode]);
+
+    if (zonaResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'El sector seleccionado no existe o está inactivo' 
+      });
+    }
+
+    const id_zona = zonaResult.rows[0].id_zona;
     
+    // ✅ Insertar ciudadano con zona obtenida automáticamente
     const result = await pool.query(
       `INSERT INTO ciudadanos_colaboradores 
        (nombre, apellido, correo, contrasena, telefono, dpi, 
-        direccion, id_zona, id_subcocode_area, usuario_ingreso) 
+        direccion, id_zona, id_subcocode, usuario_ingreso) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
        RETURNING id, nombre, apellido, correo, telefono, dpi, 
-                 direccion, id_zona, id_subcocode_area, fecha_ingreso`,
-      [nombre, apellido, correo, contrasena, telefono, dpi, 
-       direccion, id_zona, id_subcocode_area, usuario_ingreso || 'admin']
+                 direccion, id_zona, id_subcocode, fecha_ingreso`,
+      [nombre, apellido, correo, hashedPassword, telefono, dpi, 
+       direccion, id_zona, id_subcocode, usuario_ingreso || 'admin']
     );
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error al crear ciudadano:', error);
     if (error.code === '23505') { // Unique violation
-      res.status(400).json({ error: 'El correo electrónico o DPI ya está registrado' });
+      if (error.constraint === 'ciudadanos_colaboradores_correo_key') {
+        res.status(400).json({ error: 'El correo electrónico ya está registrado' });
+      } else if (error.constraint === 'ciudadanos_colaboradores_dpi_key') {
+        res.status(400).json({ error: 'El DPI ya está registrado' });
+      } else {
+        res.status(400).json({ error: 'El correo o DPI ya está registrado' });
+      }
     } else {
       res.status(500).json({ error: 'Error al crear ciudadano' });
     }
   }
 };
 
-// Editar un ciudadano
+// 🔥 ACTUALIZAR CIUDADANO - SIMPLIFICADO (igual que líderes)
 const updateCiudadano = async (req, res) => {
   const { id } = req.params;
   const { 
-    nombre, apellido, correo, telefono, dpi,
-    direccion, id_zona, id_subcocode_area, 
+    nombre, 
+    apellido, 
+    correo, 
+    telefono, 
+    dpi,
+    direccion, 
+    id_subcocode,  // 👈 SOLO recibimos el subcocode
     usuario_modifica 
   } = req.body;
   
   try {
+    if (!id_subcocode) {
+      return res.status(400).json({ 
+        error: 'Debes seleccionar un sector (Sub-COCODE)' 
+      });
+    }
+
+    // 🔍 Obtener la zona automáticamente desde el subcocode seleccionado
+    const zonaQuery = `
+      SELECT c.id_zona 
+      FROM subcocode s
+      INNER JOIN cocode c ON s.id_cocode_principal = c.id
+      WHERE s.id = $1
+    `;
+    const zonaResult = await pool.query(zonaQuery, [id_subcocode]);
+
+    if (zonaResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'El sector seleccionado no existe o está inactivo' 
+      });
+    }
+
+    const id_zona = zonaResult.rows[0].id_zona;
+
+    // ✅ Actualizar ciudadano
     const result = await pool.query(
       `UPDATE ciudadanos_colaboradores 
        SET nombre = $1, apellido = $2, correo = $3, telefono = $4, dpi = $5,
-           direccion = $6, id_zona = $7, id_subcocode_area = $8,
+           direccion = $6, id_zona = $7, id_subcocode = $8,
            usuario_modifica = $9, fecha_modifica = CURRENT_TIMESTAMP 
        WHERE id = $10 AND estado = TRUE 
        RETURNING id, nombre, apellido, correo, telefono, dpi, 
-                 direccion, id_zona, id_subcocode_area, fecha_modifica`,
+                 direccion, id_zona, id_subcocode, fecha_modifica`,
       [nombre, apellido, correo, telefono, dpi, direccion, 
-       id_zona, id_subcocode_area, usuario_modifica || 'admin', id]
+       id_zona, id_subcocode, usuario_modifica || 'admin', id]
     );
     
     if (result.rows.length === 0) {
@@ -120,7 +238,13 @@ const updateCiudadano = async (req, res) => {
   } catch (error) {
     console.error('Error al actualizar ciudadano:', error);
     if (error.code === '23505') { // Unique violation
-      res.status(400).json({ error: 'El correo electrónico o DPI ya está registrado' });
+      if (error.constraint === 'ciudadanos_colaboradores_correo_key') {
+        res.status(400).json({ error: 'El correo electrónico ya está registrado' });
+      } else if (error.constraint === 'ciudadanos_colaboradores_dpi_key') {
+        res.status(400).json({ error: 'El DPI ya está registrado' });
+      } else {
+        res.status(400).json({ error: 'El correo o DPI ya está registrado' });
+      }
     } else {
       res.status(500).json({ error: 'Error al actualizar ciudadano' });
     }
@@ -139,16 +263,15 @@ const updatePassword = async (req, res) => {
       });
     }
 
-    // TODO: En producción, hashear la nueva contraseña
-    // const bcrypt = require('bcrypt');
-    // const hashedPassword = await bcrypt.hash(nueva_contrasena, 10);
+    // 🔒 Hashear la nueva contraseña
+    const hashedPassword = await bcrypt.hash(nueva_contrasena, 10);
     
     const result = await pool.query(
       `UPDATE ciudadanos_colaboradores 
        SET contrasena = $1, usuario_modifica = $2, fecha_modifica = CURRENT_TIMESTAMP 
        WHERE id = $3 AND estado = TRUE 
        RETURNING id, nombre, apellido, correo`,
-      [nueva_contrasena, usuario_modifica || 'admin', id]
+      [hashedPassword, usuario_modifica || 'admin', id]
     );
     
     if (result.rows.length === 0) {
@@ -218,13 +341,12 @@ const getEstadisticasCiudadanos = async (req, res) => {
   }
 };
 
-// Verificar ciudadano (usando columnas existentes)
+// Verificar ciudadano
 const verificarCiudadano = async (req, res) => {
   const { id } = req.params;
   const { verificado, id_lider_verificador, usuario_modifica } = req.body;
   
   try {
-    // Usar las columnas que sí existen en el esquema
     const result = await pool.query(
       `UPDATE ciudadanos_colaboradores 
        SET verificado_por_lider = $1, 
@@ -237,7 +359,7 @@ const verificarCiudadano = async (req, res) => {
       [
         verificado, 
         verificado ? id_lider_verificador : null,
-        verificado ? 'CURRENT_TIMESTAMP' : null,
+        verificado ? new Date() : null,
         usuario_modifica || 'admin', 
         id
       ]
@@ -265,5 +387,6 @@ module.exports = {
   updatePassword,
   deleteCiudadano,
   getEstadisticasCiudadanos,
-  verificarCiudadano
+  verificarCiudadano,
+  getDatosSelect  // 👈 NUEVA FUNCIÓN EXPORTADA
 };

@@ -1,4 +1,4 @@
-// backend/controllers/ciudadano/reportesController.js - ACTUALIZADO SIN FUNCIÓN OBSOLETA
+// backend/controllers/ciudadano/reportesController.js - CORREGIDO CON id_subcocode_area
 const pool = require('../../models/db');
 const { guardarArchivosFirebaseDB, getArchivosReporteDB } = require('../firebaseController');
 
@@ -52,11 +52,22 @@ const crearReporte = async (req, res) => {
       }
     }
 
-    // Verificar que el ciudadano existe y está activo
+    // ✅ CORREGIDO: Obtener ciudadano con id_subcocode_area
     const ciudadanoQuery = `
-      SELECT id, nombre, apellido, id_zona, correo, telefono
-      FROM ciudadanos_colaboradores 
-      WHERE id = $1 AND estado = TRUE
+      SELECT 
+        c.id, 
+        c.nombre, 
+        c.apellido, 
+        c.id_zona, 
+        c.id_subcocode_area,
+        c.correo, 
+        c.telefono,
+        sc.nombre as nombre_sector,
+        z.nombre as nombre_zona
+      FROM ciudadanos_colaboradores c
+      LEFT JOIN subcocode sc ON c.id_subcocode_area = sc.id
+      LEFT JOIN zonas z ON c.id_zona = z.id
+      WHERE c.id = $1 AND c.estado = TRUE
     `;
     
     const ciudadanoResult = await pool.query(ciudadanoQuery, [ciudadanoId]);
@@ -102,31 +113,37 @@ const crearReporte = async (req, res) => {
     const metodoFinal = metodo_ubicacion || 'manual';
     const precisionFinal = precision_metros || null;
 
-    // Insertar el reporte
+    // ✅ CORREGIDO: Insertar con id_subcocode_area
     const insertQuery = `
       INSERT INTO reportes (
         numero_reporte, titulo, descripcion, direccion,
         id_tipo_problema, prioridad, id_estado,
         id_ciudadano_colaborador, tipo_usuario_creador,
-        id_zona, latitud, longitud,
+        id_zona, id_subcocode_area, latitud, longitud,
         metodo_ubicacion, precision_metros,
         fecha_reporte, usuario_ingreso
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, 'ciudadano',
-        $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, $14
+        $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, $15
       ) RETURNING *
     `;
 
     const newReporte = await pool.query(insertQuery, [
       numeroReporte, titulo, descripcion, direccion,
       id_tipo_problema, prioridad, estadoNuevoId,
-      ciudadanoId, ciudadano.id_zona,
+      ciudadanoId, 
+      ciudadano.id_zona,
+      ciudadano.id_subcocode_area, // ✅ CORREGIDO
       latFinal, lngFinal, metodoFinal, precisionFinal,
       `ciudadano_${ciudadanoId}`
     ]);
 
-    // Crear comentario inicial automático usando sistema universal
+    // Crear comentario inicial automático
     try {
+      const comentarioTexto = `Reporte creado. Ubicación: ${latFinal && lngFinal ? 'GPS' : 'Dirección'}: ${direccion}${
+        ciudadano.nombre_sector ? ` | Sector: ${ciudadano.nombre_sector}` : ''
+      }`;
+      
       await pool.query(`
         INSERT INTO comentarios_reportes (
           id_reporte, id_ciudadano, tipo_usuario_comentario, 
@@ -136,7 +153,7 @@ const crearReporte = async (req, res) => {
         newReporte.rows[0].id,
         ciudadanoId,
         `${ciudadano.nombre} ${ciudadano.apellido}`,
-        `Reporte creado. Ubicación: ${latFinal && lngFinal ? 'GPS' : 'Dirección'}: ${direccion}`,
+        comentarioTexto,
         `ciudadano_${ciudadanoId}`
       ]);
     } catch (comentarioError) {
@@ -151,10 +168,13 @@ const crearReporte = async (req, res) => {
         ciudadano_info: {
           nombre: `${ciudadano.nombre} ${ciudadano.apellido}`,
           correo: ciudadano.correo,
-          telefono: ciudadano.telefono
+          telefono: ciudadano.telefono,
+          sector: ciudadano.nombre_sector,
+          zona: ciudadano.nombre_zona
         }
       },
       numero_reporte: numeroReporte,
+      sector: ciudadano.nombre_sector || 'Sin sector asignado',
       ubicacion: {
         tiene_coordenadas: !!(latFinal && lngFinal),
         metodo: metodoFinal,
@@ -170,14 +190,13 @@ const crearReporte = async (req, res) => {
   }
 };
 
-// NUEVA FUNCIÓN: Guardar archivos Firebase en BD (endpoint para el frontend)
+// Guardar archivos Firebase en BD
 const guardarArchivosFirebase = async (req, res) => {
   try {
     const { id: reporteId } = req.params;
     const { archivos } = req.body;
     const ciudadanoId = req.user.id;
 
-    // Verificar que el reporte pertenece al ciudadano (PERMISOS DEL CIUDADANO)
     const verificarQuery = `
       SELECT id, titulo, numero_reporte
       FROM reportes 
@@ -194,7 +213,6 @@ const guardarArchivosFirebase = async (req, res) => {
 
     const reporte = verificarResult.rows[0];
 
-    // Usar función central de Firebase
     const archivosGuardados = await guardarArchivosFirebaseDB(
       reporteId, 
       archivos, 
@@ -224,13 +242,12 @@ const guardarArchivosFirebase = async (req, res) => {
   }
 };
 
-// NUEVA FUNCIÓN: Obtener archivos de un reporte
+// Obtener archivos de un reporte
 const getArchivosReporte = async (req, res) => {
   try {
     const { id: reporteId } = req.params;
     const ciudadanoId = req.user.id;
 
-    // Verificar permisos del ciudadano
     const verificarQuery = `
       SELECT id, titulo, numero_reporte
       FROM reportes 
@@ -245,7 +262,6 @@ const getArchivosReporte = async (req, res) => {
       });
     }
 
-    // Usar función central de Firebase
     const resultadoArchivos = await getArchivosReporteDB(reporteId);
 
     res.json({
@@ -263,7 +279,7 @@ const getArchivosReporte = async (req, res) => {
   }
 };
 
-// Obtener reportes del ciudadano (SOLO los suyos) - INCLUYE CONTADOR DE COMENTARIOS
+// ✅ CORREGIDO: getMisReportes con id_subcocode_area
 const getMisReportes = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
@@ -288,21 +304,20 @@ const getMisReportes = async (req, res) => {
         tp.nombre as tipo_problema,
         tp.departamento_responsable,
         z.nombre as zona,
-        -- Información del técnico asignado (si existe)
+        sc.nombre as sector,
+        sc.sector as sector_descripcion,
         CASE 
           WHEN r.id_administrador_asignado IS NOT NULL 
           THEN a.nombre || ' ' || a.apellido
           ELSE NULL
         END as tecnico_asignado,
         a.telefono as telefono_tecnico,
-        -- Días transcurridos
         EXTRACT(DAYS FROM (CURRENT_TIMESTAMP - r.fecha_reporte)) as dias_creado,
         CASE 
           WHEN r.fecha_asignacion IS NOT NULL 
           THEN EXTRACT(DAYS FROM (CURRENT_TIMESTAMP - r.fecha_asignacion))
           ELSE NULL
         END as dias_asignado,
-        -- Progreso estimado basado en estado
         CASE er.nombre
           WHEN 'Nuevo' THEN 10
           WHEN 'Aprobado por Líder' THEN 30
@@ -312,16 +327,14 @@ const getMisReportes = async (req, res) => {
           WHEN 'Cerrado' THEN 100
           ELSE 5
         END as progreso_porcentaje,
-        -- Verificar si tiene fotos (Firebase + locales)
         (SELECT COUNT(*) > 0 FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.estado = TRUE) as tiene_fotos,
-        -- Contar archivos Firebase específicamente
         (SELECT COUNT(*) FROM archivos_reporte ar WHERE ar.id_reporte = r.id AND ar.firebase_path IS NOT NULL AND ar.estado = TRUE) as fotos_firebase,
-        -- NUEVO: Contar comentarios públicos
         (SELECT COUNT(*) FROM comentarios_reportes cr WHERE cr.id_reporte = r.id AND cr.es_interno = FALSE AND cr.estado = TRUE) as comentarios_count
       FROM reportes r
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
       LEFT JOIN zonas z ON r.id_zona = z.id
+      LEFT JOIN subcocode sc ON r.id_subcocode_area = sc.id
       LEFT JOIN administradores a ON r.id_administrador_asignado = a.id
       WHERE r.id_ciudadano_colaborador = $1 
         AND r.estado = TRUE
@@ -342,7 +355,6 @@ const getMisReportes = async (req, res) => {
         COUNT(*) FILTER (WHERE er.nombre = 'Cerrado') as cerrados,
         COUNT(*) FILTER (WHERE r.prioridad = 'Alta') as criticos,
         AVG(EXTRACT(DAYS FROM (r.fecha_resolucion - r.fecha_reporte))) FILTER (WHERE er.nombre = 'Resuelto') as promedio_dias_resolucion,
-        -- NUEVO: Estadísticas de comentarios
         (SELECT COUNT(*) FROM comentarios_reportes cr 
          INNER JOIN reportes r2 ON cr.id_reporte = r2.id 
          WHERE r2.id_ciudadano_colaborador = $1 AND cr.tipo_usuario_comentario = 'ciudadano' AND cr.estado = TRUE) as comentarios_realizados
@@ -373,7 +385,7 @@ const getMisReportes = async (req, res) => {
   }
 };
 
-// Obtener tipos de problema disponibles para ciudadanos
+// Obtener tipos de problema disponibles
 const getTiposProblema = async (req, res) => {
   try {
     const tiposQuery = `
@@ -402,19 +414,27 @@ const getTiposProblema = async (req, res) => {
   }
 };
 
-// FUNCIÓN CORREGIDA: Obtener datos para selects del formulario (CON CATEGORÍAS)
+// ✅ CORREGIDO: getDatosFormulario con id_subcocode_area
 const getDatosFormulario = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
 
     console.log('🔍 Obteniendo datos para formulario de reporte...');
 
-    // Obtener información del ciudadano
+    // ✅ CORREGIDO: Query con id_subcocode_area
     const ciudadanoQuery = `
-      SELECT c.nombre, c.apellido, c.direccion, 
-             z.nombre as zona
+      SELECT 
+        c.nombre, 
+        c.apellido, 
+        c.direccion, 
+        c.id_zona,
+        c.id_subcocode_area,
+        z.nombre as zona,
+        sc.nombre as sector,
+        sc.sector as sector_descripcion
       FROM ciudadanos_colaboradores c
       LEFT JOIN zonas z ON c.id_zona = z.id
+      LEFT JOIN subcocode sc ON c.id_subcocode_area = sc.id
       WHERE c.id = $1 AND c.estado = TRUE
     `;
     
@@ -471,6 +491,11 @@ const getDatosFormulario = async (req, res) => {
       ],
       firebase_enabled: true,
       comentarios_enabled: true,
+      sector_info: {
+        tiene_sector: !!ciudadanoResult.rows[0]?.id_subcocode_area,
+        sector: ciudadanoResult.rows[0]?.sector,
+        zona: ciudadanoResult.rows[0]?.zona
+      },
       mensaje: 'Datos obtenidos correctamente'
     });
 
@@ -484,15 +509,11 @@ const getDatosFormulario = async (req, res) => {
   }
 };
 
-// ✅ FUNCIÓN OBSOLETA ELIMINADA: agregarComentario (ahora usa comentariosController.js universal)
-
 module.exports = {
   crearReporte,
   getMisReportes,
-  // ❌ agregarComentario, // ELIMINADA - usa sistema universal
   getTiposProblema,
-  getDatosFormulario,  // FUNCIÓN CORREGIDA CON CATEGORÍAS
-  // NUEVAS FUNCIONES FIREBASE
+  getDatosFormulario,
   guardarArchivosFirebase,
   getArchivosReporte
 };

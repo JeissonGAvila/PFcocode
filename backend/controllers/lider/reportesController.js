@@ -1,7 +1,7 @@
-// backend/controllers/lider/reportesController.js - MEJORADO CON FOTOS Y UBICACIÓN + COMENTARIOS SINCRONIZADOS
+// backend/controllers/lider/reportesController.js - MEJORADO CON FILTROS AVANZADOS
 const pool = require('../../models/db');
 
-// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona) - MEJORADO
+// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona) - SIN CAMBIOS
 const getReportesPendientesAprobacion = async (req, res) => {
   try {
     const liderId = req.user.id;
@@ -112,20 +112,47 @@ const getReportesPendientesAprobacion = async (req, res) => {
   }
 };
 
-// 2. VER REPORTES DE SU ZONA (todos los estados) - MEJORADO CON CONTADOR DE COMENTARIOS
+// 2. VER REPORTES DE SU ZONA - ⭐ MEJORADO CON FILTROS AVANZADOS
 const getReportesZona = async (req, res) => {
   try {
     const liderId = req.user.id;
     const zonaId = req.user.permisos.id_zona;
-    const { estado, page = 1, limit = 20 } = req.query;
+    
+    // ⭐ NUEVOS PARÁMETROS DE FILTROS
+    const { 
+      estado,           // Filtro por estado
+      prioridad,        // Filtro por prioridad
+      busqueda,         // Búsqueda en título/descripción
+      page = 1, 
+      limit = 20 
+    } = req.query;
 
     let whereClause = 'WHERE r.id_zona = $1 AND r.estado = TRUE';
     let params = [zonaId];
+    let paramCount = 1;
 
-    // Filtro opcional por estado
-    if (estado) {
-      whereClause += ' AND er.nombre = $2';
+    // ⭐ FILTRO POR ESTADO
+    if (estado && estado !== 'todos') {
+      paramCount++;
+      whereClause += ` AND er.nombre = $${paramCount}`;
       params.push(estado);
+    }
+
+    // ⭐ FILTRO POR PRIORIDAD
+    if (prioridad && prioridad !== 'todas') {
+      paramCount++;
+      whereClause += ` AND r.prioridad = $${paramCount}`;
+      params.push(prioridad);
+    }
+
+    // ⭐ BÚSQUEDA POR TEXTO (título o descripción)
+    if (busqueda && busqueda.trim()) {
+      paramCount++;
+      whereClause += ` AND (
+        LOWER(r.titulo) LIKE LOWER($${paramCount}) OR 
+        LOWER(r.descripcion) LIKE LOWER($${paramCount})
+      )`;
+      params.push(`%${busqueda.trim()}%`);
     }
 
     const offset = (page - 1) * limit;
@@ -191,7 +218,7 @@ const getReportesZona = async (req, res) => {
             AND ar.es_evidencia_inicial = TRUE
         ) as total_fotos,
         
-        -- NUEVO: Contador de comentarios públicos
+        -- Contador de comentarios públicos
         (
           SELECT COUNT(*) 
           FROM comentarios_reportes cr 
@@ -218,9 +245,15 @@ const getReportesZona = async (req, res) => {
           WHEN er.nombre = 'Resuelto' THEN 5
           ELSE 6
         END,
+        CASE r.prioridad
+          WHEN 'Alta' THEN 1
+          WHEN 'Media' THEN 2
+          WHEN 'Baja' THEN 3
+          ELSE 4
+        END,
         r.fecha_reporte DESC
         
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 
     params.push(limit, offset);
@@ -234,7 +267,7 @@ const getReportesZona = async (req, res) => {
       fotos: reporte.fotos || []
     }));
 
-    // Contar total de reportes
+    // Contar total de reportes con los mismos filtros
     const countQuery = `
       SELECT COUNT(*) as total
       FROM reportes r
@@ -242,11 +275,18 @@ const getReportesZona = async (req, res) => {
       ${whereClause}
     `;
     
-    const countResult = await pool.query(countQuery, params.slice(0, -2));
+    const countParams = params.slice(0, -2); // Remover limit y offset
+    const countResult = await pool.query(countQuery, countParams);
 
     res.json({
       success: true,
       reportes: reportesProcesados,
+      filtros_aplicados: {
+        estado: estado || 'todos',
+        prioridad: prioridad || 'todas',
+        busqueda: busqueda || '',
+        zona_id: zonaId
+      },
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -264,7 +304,7 @@ const getReportesZona = async (req, res) => {
   }
 };
 
-// 3. APROBAR REPORTE - CON COMENTARIO SINCRONIZADO
+// 3. APROBAR REPORTE - SIN CAMBIOS
 const aprobarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -345,7 +385,7 @@ const aprobarReporte = async (req, res) => {
       `lider_${liderId}`
     ]);
 
-    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    // Agregar comentario en comentarios_reportes
     if (comentario_lider && comentario_lider.trim()) {
       await pool.query(`
         INSERT INTO comentarios_reportes (
@@ -377,7 +417,7 @@ const aprobarReporte = async (req, res) => {
   }
 };
 
-// 4. RECHAZAR REPORTE - CON COMENTARIO SINCRONIZADO
+// 4. RECHAZAR REPORTE - SIN CAMBIOS
 const rechazarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -444,7 +484,7 @@ const rechazarReporte = async (req, res) => {
       reporteId
     ]);
 
-    // Crear registro de seguimiento con el motivo en el comentario
+    // Crear registro de seguimiento
     const seguimientoQuery = `
       INSERT INTO seguimiento_reportes (
         id_reporte, id_lider, tipo_usuario_seguimiento,
@@ -464,7 +504,7 @@ const rechazarReporte = async (req, res) => {
       `lider_${liderId}`
     ]);
 
-    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    // Agregar comentario en comentarios_reportes
     const comentarioRechazo = `Motivo de rechazo: ${motivo_rechazo}${comentario_lider ? '. ' + comentario_lider : ''}`;
     
     await pool.query(`
@@ -497,7 +537,7 @@ const rechazarReporte = async (req, res) => {
   }
 };
 
-// 5. VALIDAR RESOLUCIÓN DE TÉCNICO - CON COMENTARIO SINCRONIZADO
+// 5. VALIDAR RESOLUCIÓN DE TÉCNICO - SIN CAMBIOS
 const validarResolucion = async (req, res) => {
   try {
     const { reporteId } = req.params;
@@ -586,7 +626,7 @@ const validarResolucion = async (req, res) => {
       `lider_${liderId}`
     ]);
 
-    // NUEVO: Agregar comentario en comentarios_reportes para que el ciudadano lo vea
+    // Agregar comentario en comentarios_reportes
     if (comentario_validacion && comentario_validacion.trim()) {
       const comentarioValidacion = `${aprobado ? 'Resolución aprobada' : 'Resolución rechazada'}: ${comentario_validacion.trim()}`;
       

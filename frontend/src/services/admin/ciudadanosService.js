@@ -2,6 +2,16 @@
 import { apiService, handleApiError } from '../api.js';
 
 export const ciudadanosService = {
+  // 🔧 NUEVO: Obtener datos para selects (COCODEs y Sub-COCODEs)
+  getDatosSelect: async () => {
+    try {
+      const response = await apiService.get('/api/admin/ciudadanos/datos-select');
+      return response;
+    } catch (error) {
+      throw new Error(handleApiError(error));
+    }
+  },
+
   // 📋 LISTAR TODOS LOS CIUDADANOS
   getAll: async () => {
     try {

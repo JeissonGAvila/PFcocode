@@ -1,7 +1,7 @@
 // backend/controllers/admin/zonasController.js
 const pool = require('../../models/db');
 
-// Obtener todas las zonas con información de COCODE
+// Obtener todas las zonas
 const getZonas = async (req, res) => {
   try {
     const query = `
@@ -17,23 +17,10 @@ const getZonas = async (req, res) => {
         z.usuario_ingreso,
         z.fecha_modifica,
         z.usuario_modifica,
-        -- Información del COCODE principal
-        c.id as cocode_id,
-        c.nombre as cocode_nombre,
-        c.direccion as cocode_direccion,
-        c.telefono as cocode_telefono,
-        c.poblacion_estimada as cocode_poblacion,
-        c.estado as cocode_estado,
-        -- Contar sub-COCODE
-        (SELECT COUNT(*) FROM subcocode sc WHERE sc.id_cocode_principal = c.id AND sc.estado = TRUE) as total_subcocode,
-        -- Contar líderes
-        (SELECT COUNT(*) FROM usuarios u WHERE u.id_cocode_principal = c.id AND u.estado = TRUE) as total_lideres_principales,
-        -- Contar ciudadanos en la zona
+        (SELECT COUNT(*) FROM cocode c WHERE c.id_zona = z.id AND c.estado = TRUE) as total_cocode,
         (SELECT COUNT(*) FROM ciudadanos_colaboradores cc WHERE cc.id_zona = z.id AND cc.estado = TRUE) as total_ciudadanos,
-        -- Contar reportes activos en la zona
         (SELECT COUNT(*) FROM reportes r WHERE r.id_zona = z.id AND r.estado = TRUE) as total_reportes
       FROM zonas z
-      LEFT JOIN cocode c ON c.id_zona = z.id AND c.estado = TRUE
       WHERE z.estado = TRUE
       ORDER BY z.numero_zona ASC, z.nombre ASC
     `;
@@ -52,22 +39,15 @@ const getZonas = async (req, res) => {
   }
 };
 
-// Obtener una zona específica con detalles completos
+// Obtener una zona específica
 const getZonaById = async (req, res) => {
   const { id } = req.params;
   
   try {
     const zonaQuery = `
-      SELECT 
-        z.*,
-        c.id as cocode_id,
-        c.nombre as cocode_nombre,
-        c.direccion as cocode_direccion,
-        c.telefono as cocode_telefono,
-        c.poblacion_estimada as cocode_poblacion
-      FROM zonas z
-      LEFT JOIN cocode c ON c.id_zona = z.id AND c.estado = TRUE
-      WHERE z.id = $1 AND z.estado = TRUE
+      SELECT *
+      FROM zonas
+      WHERE id = $1 AND estado = TRUE
     `;
     
     const zonaResult = await pool.query(zonaQuery, [id]);
@@ -78,29 +58,9 @@ const getZonaById = async (req, res) => {
       });
     }
 
-    // Obtener sub-COCODE de la zona
-    const subcocodeQuery = `
-      SELECT 
-        sc.*,
-        u.id as lider_id,
-        u.nombre as lider_nombre,
-        u.apellido as lider_apellido,
-        u.correo as lider_correo,
-        u.telefono as lider_telefono
-      FROM subcocode sc
-      LEFT JOIN usuarios u ON u.id_subcocode = sc.id AND u.estado = TRUE
-      WHERE sc.id_cocode_principal = $1 AND sc.estado = TRUE
-      ORDER BY sc.nombre ASC
-    `;
-    
-    const subcocodeResult = await pool.query(subcocodeQuery, [zonaResult.rows[0].cocode_id]);
-
     res.json({
       success: true,
-      zona: {
-        ...zonaResult.rows[0],
-        subcocode: subcocodeResult.rows
-      }
+      zona: zonaResult.rows[0]
     });
 
   } catch (error) {
@@ -114,20 +74,20 @@ const getZonaById = async (req, res) => {
 // Crear nueva zona
 const createZona = async (req, res) => {
   const { 
-    nombre, numero_zona, descripcion, poblacion_estimada, area_km2,
-    // Datos del COCODE principal
-    cocode_nombre, cocode_direccion, cocode_telefono, cocode_poblacion
+    nombre, 
+    numero_zona, 
+    descripcion, 
+    poblacion_estimada, 
+    area_km2
   } = req.body;
 
   try {
-    // Validaciones básicas
     if (!nombre || !numero_zona) {
       return res.status(400).json({ 
         error: 'Nombre y número de zona son requeridos' 
       });
     }
 
-    // Validar que el número de zona no exista
     const numeroQuery = 'SELECT id FROM zonas WHERE numero_zona = $1 AND estado = TRUE';
     const numeroResult = await pool.query(numeroQuery, [numero_zona]);
     
@@ -137,7 +97,6 @@ const createZona = async (req, res) => {
       });
     }
 
-    // Validar que el nombre no exista
     const nombreQuery = 'SELECT id FROM zonas WHERE LOWER(nombre) = LOWER($1) AND estado = TRUE';
     const nombreResult = await pool.query(nombreQuery, [nombre]);
     
@@ -147,55 +106,32 @@ const createZona = async (req, res) => {
       });
     }
 
-    // Iniciar transacción
-    await pool.query('BEGIN');
-
-    // Insertar nueva zona
     const zonaInsertQuery = `
       INSERT INTO zonas (
         nombre, numero_zona, descripcion, poblacion_estimada, 
         area_km2, usuario_ingreso
       ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, nombre, numero_zona
+      RETURNING *
     `;
 
     const zonaValues = [
-      nombre, numero_zona, descripcion, poblacion_estimada || null,
-      area_km2 || null, req.user?.correo || 'admin'
-    ];
-
-    const zonaResult = await pool.query(zonaInsertQuery, zonaValues);
-    const zonaId = zonaResult.rows[0].id;
-
-    // Crear COCODE principal automáticamente
-    const cocodeNombre = cocode_nombre || `COCODE Principal ${nombre}`;
-    
-    const cocodeInsertQuery = `
-      INSERT INTO cocode (
-        id_zona, nombre, direccion, telefono, poblacion_estimada, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, nombre
-    `;
-
-    const cocodeValues = [
-      zonaId, cocodeNombre, cocode_direccion || null, cocode_telefono || null,
-      cocode_poblacion || poblacion_estimada || null, 
+      nombre, 
+      numero_zona, 
+      descripcion || null, 
+      poblacion_estimada || null,
+      area_km2 || null, 
       req.user?.correo || 'admin'
     ];
 
-    const cocodeResult = await pool.query(cocodeInsertQuery, cocodeValues);
-
-    await pool.query('COMMIT');
+    const zonaResult = await pool.query(zonaInsertQuery, zonaValues);
 
     res.status(201).json({
       success: true,
-      message: 'Zona y COCODE principal creados exitosamente',
-      zona: zonaResult.rows[0],
-      cocode: cocodeResult.rows[0]
+      message: 'Zona creada exitosamente',
+      zona: zonaResult.rows[0]
     });
 
   } catch (error) {
-    await pool.query('ROLLBACK');
     console.error('Error al crear zona:', error);
     
     if (error.code === '23505') {
@@ -210,24 +146,24 @@ const createZona = async (req, res) => {
   }
 };
 
-// Actualizar zona existente
+// Actualizar zona
 const updateZona = async (req, res) => {
   const { id } = req.params;
   const { 
-    nombre, numero_zona, descripcion, poblacion_estimada, area_km2,
-    // Datos del COCODE principal para actualizar
-    cocode_nombre, cocode_direccion, cocode_telefono, cocode_poblacion
+    nombre, 
+    numero_zona, 
+    descripcion, 
+    poblacion_estimada, 
+    area_km2
   } = req.body;
 
   try {
-    // Validaciones básicas
     if (!nombre || !numero_zona) {
       return res.status(400).json({ 
         error: 'Nombre y número de zona son requeridos' 
       });
     }
 
-    // Validar que el número de zona no exista en otra zona
     const numeroQuery = 'SELECT id FROM zonas WHERE numero_zona = $1 AND id != $2 AND estado = TRUE';
     const numeroResult = await pool.query(numeroQuery, [numero_zona, id]);
     
@@ -237,7 +173,6 @@ const updateZona = async (req, res) => {
       });
     }
 
-    // Validar que el nombre no exista en otra zona
     const nombreQuery = 'SELECT id FROM zonas WHERE LOWER(nombre) = LOWER($1) AND id != $2 AND estado = TRUE';
     const nombreResult = await pool.query(nombreQuery, [nombre, id]);
     
@@ -247,10 +182,6 @@ const updateZona = async (req, res) => {
       });
     }
 
-    // Iniciar transacción
-    await pool.query('BEGIN');
-
-    // Actualizar zona
     const zonaUpdateQuery = `
       UPDATE zonas SET
         nombre = $1,
@@ -261,46 +192,26 @@ const updateZona = async (req, res) => {
         fecha_modifica = NOW(),
         usuario_modifica = $6
       WHERE id = $7 AND estado = TRUE
-      RETURNING id, nombre, numero_zona
+      RETURNING *
     `;
 
     const zonaValues = [
-      nombre, numero_zona, descripcion, poblacion_estimada || null,
-      area_km2 || null, req.user?.correo || 'admin', id
+      nombre, 
+      numero_zona, 
+      descripcion || null, 
+      poblacion_estimada || null,
+      area_km2 || null, 
+      req.user?.correo || 'admin', 
+      id
     ];
 
     const zonaResult = await pool.query(zonaUpdateQuery, zonaValues);
 
     if (zonaResult.rows.length === 0) {
-      await pool.query('ROLLBACK');
       return res.status(404).json({ 
         error: 'Zona no encontrada' 
       });
     }
-
-    // Actualizar COCODE principal si existe
-    if (cocode_nombre) {
-      const cocodeUpdateQuery = `
-        UPDATE cocode SET
-          nombre = $1,
-          direccion = $2,
-          telefono = $3,
-          poblacion_estimada = $4,
-          fecha_modifica = NOW(),
-          usuario_modifica = $5
-        WHERE id_zona = $6 AND estado = TRUE
-        RETURNING id, nombre
-      `;
-
-      const cocodeValues = [
-        cocode_nombre, cocode_direccion || null, cocode_telefono || null,
-        cocode_poblacion || null, req.user?.correo || 'admin', id
-      ];
-
-      await pool.query(cocodeUpdateQuery, cocodeValues);
-    }
-
-    await pool.query('COMMIT');
 
     res.json({
       success: true,
@@ -309,7 +220,6 @@ const updateZona = async (req, res) => {
     });
 
   } catch (error) {
-    await pool.query('ROLLBACK');
     console.error('Error al actualizar zona:', error);
     res.status(500).json({ 
       error: 'Error al actualizar zona' 
@@ -317,12 +227,27 @@ const updateZona = async (req, res) => {
   }
 };
 
-// Desactivar zona (borrado lógico)
+// Desactivar zona
 const deleteZona = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Verificar si la zona tiene reportes activos
+    const cocodeQuery = `
+      SELECT COUNT(*) as total 
+      FROM cocode 
+      WHERE id_zona = $1 
+      AND estado = TRUE
+    `;
+    
+    const cocodeResult = await pool.query(cocodeQuery, [id]);
+    const cocodesActivos = parseInt(cocodeResult.rows[0].total);
+
+    if (cocodesActivos > 0) {
+      return res.status(400).json({ 
+        error: `No se puede desactivar la zona porque tiene ${cocodesActivos} COCODEs activos. Desactiva primero los COCODEs.` 
+      });
+    }
+
     const reportesQuery = `
       SELECT COUNT(*) as total 
       FROM reportes 
@@ -339,7 +264,6 @@ const deleteZona = async (req, res) => {
       });
     }
 
-    // Verificar si tiene ciudadanos activos
     const ciudadanosQuery = `
       SELECT COUNT(*) as total 
       FROM ciudadanos_colaboradores 
@@ -356,10 +280,6 @@ const deleteZona = async (req, res) => {
       });
     }
 
-    // Iniciar transacción
-    await pool.query('BEGIN');
-
-    // Desactivar zona
     const deleteZonaQuery = `
       UPDATE zonas SET
         estado = FALSE,
@@ -375,32 +295,10 @@ const deleteZona = async (req, res) => {
     ]);
 
     if (zonaResult.rows.length === 0) {
-      await pool.query('ROLLBACK');
       return res.status(404).json({ 
         error: 'Zona no encontrada' 
       });
     }
-
-    // Desactivar COCODE y sub-COCODE asociados
-    await pool.query(`
-      UPDATE cocode SET
-        estado = FALSE,
-        fecha_modifica = NOW(),
-        usuario_modifica = $1
-      WHERE id_zona = $2 AND estado = TRUE
-    `, [req.user?.correo || 'admin', id]);
-
-    await pool.query(`
-      UPDATE subcocode SET
-        estado = FALSE,
-        fecha_modifica = NOW(),
-        usuario_modifica = $1
-      WHERE id_cocode_principal IN (
-        SELECT id FROM cocode WHERE id_zona = $2
-      ) AND estado = TRUE
-    `, [req.user?.correo || 'admin', id]);
-
-    await pool.query('COMMIT');
 
     res.json({
       success: true,
@@ -408,7 +306,6 @@ const deleteZona = async (req, res) => {
     });
 
   } catch (error) {
-    await pool.query('ROLLBACK');
     console.error('Error al desactivar zona:', error);
     res.status(500).json({ 
       error: 'Error al desactivar zona' 
@@ -416,73 +313,7 @@ const deleteZona = async (req, res) => {
   }
 };
 
-// Crear sub-COCODE en una zona
-const createSubCocode = async (req, res) => {
-  const { zonaId } = req.params;
-  const { 
-    nombre, sector, direccion, poblacion_estimada
-  } = req.body;
-
-  try {
-    // Validar que la zona existe
-    const zonaQuery = 'SELECT id, nombre FROM zonas WHERE id = $1 AND estado = TRUE';
-    const zonaResult = await pool.query(zonaQuery, [zonaId]);
-    
-    if (zonaResult.rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'Zona no encontrada' 
-      });
-    }
-
-    // Obtener COCODE principal de la zona
-    const cocodeQuery = 'SELECT id FROM cocode WHERE id_zona = $1 AND estado = TRUE';
-    const cocodeResult = await pool.query(cocodeQuery, [zonaId]);
-    
-    if (cocodeResult.rows.length === 0) {
-      return res.status(400).json({ 
-        error: 'No se encontró COCODE principal para esta zona' 
-      });
-    }
-
-    const cocodeId = cocodeResult.rows[0].id;
-
-    // Validar datos requeridos
-    if (!nombre || !sector) {
-      return res.status(400).json({ 
-        error: 'Nombre y sector son requeridos' 
-      });
-    }
-
-    // Insertar sub-COCODE
-    const insertQuery = `
-      INSERT INTO subcocode (
-        id_cocode_principal, nombre, sector, direccion, poblacion_estimada, usuario_ingreso
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, nombre, sector
-    `;
-
-    const values = [
-      cocodeId, nombre, sector, direccion || null, poblacion_estimada || null,
-      req.user?.correo || 'admin'
-    ];
-
-    const result = await pool.query(insertQuery, values);
-
-    res.status(201).json({
-      success: true,
-      message: 'Sub-COCODE creado exitosamente',
-      subcocode: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Error al crear sub-COCODE:', error);
-    res.status(500).json({ 
-      error: 'Error al crear sub-COCODE' 
-    });
-  }
-};
-
-// Obtener estadísticas de zonas
+// Obtener estadísticas
 const getZonasStats = async (req, res) => {
   try {
     const statsQuery = `
@@ -527,6 +358,5 @@ module.exports = {
   createZona,
   updateZona,
   deleteZona,
-  createSubCocode,
   getZonasStats
 };
