@@ -9,8 +9,12 @@ const {
   updatePassword,
   deleteCiudadano,
   getEstadisticasCiudadanos,
-  verificarCiudadano
+  verificarCiudadano,
+  getDatosSelect  // 👈 NUEVO: importamos la función
 } = require('../../controllers/admin/ciudadanosController');
+
+// 🔧 NUEVO: GET datos para selects (debe ir ANTES de las rutas con params)
+router.get('/datos-select', getDatosSelect);
 
 // GET: listar todos los ciudadanos
 router.get('/', getCiudadanos);

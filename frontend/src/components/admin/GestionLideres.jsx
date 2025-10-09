@@ -1,4 +1,4 @@
-// frontend/src/components/admin/GestionLideres.jsx
+// frontend/src/components/admin/GestionLideres.jsx - CON SELECTS EN CASCADA
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -35,9 +35,10 @@ import {
   Delete as DeleteIcon,
   Lock as LockIcon,
   Refresh as RefreshIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
-import lideresService, { tiposLiderDisponibles, cargosDisponibles } from '../../services/admin/lideresService.js';
+import lideresService from '../../services/admin/lideresService.js';
 
 const GestionLideres = () => {
   // Estados principales
@@ -48,6 +49,7 @@ const GestionLideres = () => {
   // Estados para datos de selects
   const [cocodesPrincipales, setCocodesPrincipales] = useState([]);
   const [subCocodes, setSubCocodes] = useState([]);
+  const [subCocodesFiltered, setSubCocodesFiltered] = useState([]);
 
   // Estados para modales
   const [openModal, setOpenModal] = useState(false);
@@ -63,11 +65,6 @@ const GestionLideres = () => {
     contrasena: '',
     telefono: '',
     dpi: '',
-    tipo_lider: '',
-    cargo: '',
-    fecha_eleccion: '',
-    periodo_inicio: '',
-    periodo_fin: '',
     id_cocode_principal: '',
     id_subcocode: ''
   });
@@ -84,6 +81,22 @@ const GestionLideres = () => {
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  // Filtrar Sub-COCODEs cuando cambia el COCODE seleccionado
+  useEffect(() => {
+    if (formData.id_cocode_principal) {
+      const filtered = subCocodes.filter(
+        sub => sub.cocode_principal_id === parseInt(formData.id_cocode_principal)
+      );
+      setSubCocodesFiltered(filtered);
+    } else {
+      setSubCocodesFiltered([]);
+      // Limpiar subcocode si no hay cocode seleccionado
+      if (formData.id_subcocode) {
+        setFormData(prev => ({ ...prev, id_subcocode: '' }));
+      }
+    }
+  }, [formData.id_cocode_principal, subCocodes]);
 
   const cargarDatos = async () => {
     try {
@@ -131,14 +144,10 @@ const GestionLideres = () => {
       contrasena: '',
       telefono: '',
       dpi: '',
-      tipo_lider: '',
-      cargo: '',
-      fecha_eleccion: '',
-      periodo_inicio: '',
-      periodo_fin: '',
       id_cocode_principal: '',
       id_subcocode: ''
     });
+    setSubCocodesFiltered([]);
     setEditingLider(null);
     setIsEditing(false);
     setOpenModal(true);
@@ -149,14 +158,9 @@ const GestionLideres = () => {
       nombre: lider.nombre || '',
       apellido: lider.apellido || '',
       correo: lider.correo || '',
-      contrasena: '', // No mostrar contraseña existente
+      contrasena: '',
       telefono: lider.telefono || '',
       dpi: lider.dpi || '',
-      tipo_lider: lider.tipo_lider || '',
-      cargo: lider.cargo || '',
-      fecha_eleccion: lider.fecha_eleccion ? lider.fecha_eleccion.split('T')[0] : '',
-      periodo_inicio: lider.periodo_inicio ? lider.periodo_inicio.split('T')[0] : '',
-      periodo_fin: lider.periodo_fin ? lider.periodo_fin.split('T')[0] : '',
       id_cocode_principal: lider.id_cocode_principal || '',
       id_subcocode: lider.id_subcocode || ''
     });
@@ -179,6 +183,7 @@ const GestionLideres = () => {
     setOpenPasswordModal(false);
     setEditingLider(null);
     setIsEditing(false);
+    setSubCocodesFiltered([]);
     setFormData({
       nombre: '',
       apellido: '',
@@ -186,11 +191,6 @@ const GestionLideres = () => {
       contrasena: '',
       telefono: '',
       dpi: '',
-      tipo_lider: '',
-      cargo: '',
-      fecha_eleccion: '',
-      periodo_inicio: '',
-      periodo_fin: '',
       id_cocode_principal: '',
       id_subcocode: ''
     });
@@ -203,10 +203,20 @@ const GestionLideres = () => {
   // Funciones de formulario
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Si cambia el COCODE, limpiar el Sub-COCODE
+    if (name === 'id_cocode_principal') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        id_subcocode: '' // Limpiar subcocode cuando cambia cocode
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handlePasswordInputChange = (e) => {
@@ -221,8 +231,8 @@ const GestionLideres = () => {
   const handleSubmit = async () => {
     try {
       // Validaciones básicas
-      if (!formData.nombre || !formData.apellido || !formData.correo || !formData.tipo_lider) {
-        mostrarSnackbar('Por favor completa todos los campos requeridos', 'error');
+      if (!formData.nombre || !formData.apellido || !formData.correo) {
+        mostrarSnackbar('Por favor completa los campos obligatorios: nombre, apellido y correo', 'error');
         return;
       }
 
@@ -236,24 +246,42 @@ const GestionLideres = () => {
         return;
       }
 
-      // Validar asignación según tipo de líder
-      if (formData.tipo_lider === 'principal' && !formData.id_cocode_principal) {
-        mostrarSnackbar('Debe seleccionar un COCODE principal', 'error');
+      // Validar formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.correo)) {
+        mostrarSnackbar('El formato del correo electrónico no es válido', 'error');
         return;
       }
 
-      if (formData.tipo_lider === 'subcocode' && !formData.id_subcocode) {
-        mostrarSnackbar('Debe seleccionar un Sub-COCODE', 'error');
+      // Validar que haya seleccionado un Sub-COCODE (obligatorio)
+      if (!formData.id_subcocode) {
+        mostrarSnackbar('Debe seleccionar un Sub-COCODE (sector) específico', 'error');
         return;
       }
 
       setLoading(true);
 
+      // Preparar datos: SOLO enviar id_subcocode, NO enviar id_cocode_principal
+      const dataToSend = {
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        correo: formData.correo,
+        telefono: formData.telefono,
+        dpi: formData.dpi,
+        id_subcocode: formData.id_subcocode, // Solo este se guarda
+        es_lider_principal: false // Siempre false porque es líder de sector
+      };
+
+      // Agregar contraseña solo si no es edición
+      if (!isEditing) {
+        dataToSend.contrasena = formData.contrasena;
+      }
+
       if (isEditing) {
-        await lideresService.update(editingLider.id, formData);
+        await lideresService.update(editingLider.id, dataToSend);
         mostrarSnackbar('Líder actualizado exitosamente', 'success');
       } else {
-        await lideresService.create(formData);
+        await lideresService.create(dataToSend);
         mostrarSnackbar('Líder creado exitosamente', 'success');
       }
 
@@ -311,20 +339,6 @@ const GestionLideres = () => {
     }
   };
 
-  // Funciones auxiliares
-  const getTipoLiderColor = (tipo) => {
-    switch (tipo) {
-      case 'principal': return 'primary';
-      case 'subcocode': return 'secondary';
-      default: return 'default';
-    }
-  };
-
-  const getTipoLiderLabel = (tipo) => {
-    const tipoObj = tiposLiderDisponibles.find(t => t.value === tipo);
-    return tipoObj ? tipoObj.label : tipo;
-  };
-
   if (loading && lideres.length === 0) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" p={4}>
@@ -351,8 +365,8 @@ const GestionLideres = () => {
     <Box>
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h6">
-          👑 Gestión de Líderes COCODE ({lideres.length} total)
+        <Typography variant="h5" fontWeight="bold">
+          Gestión de Líderes COCODE ({lideres.length} total)
         </Typography>
         <Box display="flex" gap={2}>
           <Button
@@ -377,7 +391,8 @@ const GestionLideres = () => {
       {/* Alerta informativa */}
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          <strong>Funcionalidades:</strong> Crear, editar y desactivar líderes COCODE principales y sub-COCODE. Cambiar contraseñas y gestionar asignaciones territoriales.
+          <strong>Instrucciones:</strong> Selecciona un COCODE principal. Si deseas asignar un Sub-COCODE específico, selecciónalo de la lista filtrada.
+          Si solo seleccionas COCODE, será líder principal. Si seleccionas COCODE + Sub-COCODE, será líder de ese sector específico.
         </Typography>
       </Alert>
 
@@ -388,11 +403,10 @@ const GestionLideres = () => {
             <TableRow sx={{ backgroundColor: 'grey.100' }}>
               <TableCell><strong>Nombre</strong></TableCell>
               <TableCell><strong>Email</strong></TableCell>
-              <TableCell><strong>Tipo de Líder</strong></TableCell>
-              <TableCell><strong>Cargo</strong></TableCell>
-              <TableCell><strong>COCODE Asignado</strong></TableCell>
+              <TableCell><strong>Tipo</strong></TableCell>
+              <TableCell><strong>Asignación</strong></TableCell>
               <TableCell><strong>Zona</strong></TableCell>
-              <TableCell><strong>Período</strong></TableCell>
+              <TableCell><strong>Teléfono</strong></TableCell>
               <TableCell><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
@@ -400,14 +414,14 @@ const GestionLideres = () => {
             {lideres.map((lider) => (
               <TableRow key={lider.id} hover>
                 <TableCell>
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      {lider.nombre} {lider.apellido}
-                    </Typography>
+                  <Typography variant="body2" fontWeight="medium">
+                    {lider.nombre} {lider.apellido}
+                  </Typography>
+                  {lider.dpi && (
                     <Typography variant="caption" color="textSecondary">
-                      {lider.telefono}
+                      DPI: {lider.dpi}
                     </Typography>
-                  </Box>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
@@ -416,19 +430,20 @@ const GestionLideres = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={getTipoLiderLabel(lider.tipo_lider)}
-                    color={getTipoLiderColor(lider.tipo_lider)}
+                    label={lider.es_lider_principal ? 'Líder Principal' : 'Líder Sub-COCODE'}
+                    color={lider.es_lider_principal ? 'primary' : 'secondary'}
                     size="small"
+                    icon={lider.es_lider_principal ? <CheckCircleIcon /> : <GroupIcon />}
                   />
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {lider.cargo || 'No especificado'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {lider.cocode_asignado || 'Sin asignar'}
+                    {lider.es_lider_principal 
+                      ? lider.cocode_nombre || 'Sin asignar'
+                      : lider.subcocode_nombre 
+                        ? `${lider.subcocode_nombre} (${lider.subcocode_sector})`
+                        : 'Sin asignar'
+                    }
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -438,10 +453,7 @@ const GestionLideres = () => {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {lider.periodo_inicio && lider.periodo_fin 
-                      ? `${lider.periodo_inicio.split('-')[0]} - ${lider.periodo_fin.split('-')[0]}`
-                      : 'No definido'
-                    }
+                    {lider.telefono || 'N/A'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -552,6 +564,7 @@ const GestionLideres = () => {
                 value={formData.dpi}
                 onChange={handleInputChange}
                 placeholder="1234567890101"
+                inputProps={{ maxLength: 13 }}
               />
             </Grid>
             
@@ -570,133 +583,64 @@ const GestionLideres = () => {
               </Grid>
             )}
 
-            {/* Información de Liderazgo */}
+            {/* Asignación Territorial */}
             <Grid item xs={12} sx={{ mt: 2 }}>
               <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Información de Liderazgo
+                Asignación Territorial
               </Typography>
               <Divider />
             </Grid>
-            
+
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth required>
-                <InputLabel>Tipo de Líder</InputLabel>
+                <InputLabel>COCODE Principal *</InputLabel>
                 <Select
-                  name="tipo_lider"
-                  value={formData.tipo_lider}
+                  name="id_cocode_principal"
+                  value={formData.id_cocode_principal}
                   onChange={handleInputChange}
-                  label="Tipo de Líder"
+                  label="COCODE Principal *"
                 >
-                  {tiposLiderDisponibles.map((tipo) => (
-                    <MenuItem key={tipo.value} value={tipo.value}>
-                      {tipo.label}
+                  <MenuItem value="">
+                    <em>Seleccione un COCODE</em>
+                  </MenuItem>
+                  {cocodesPrincipales.map((cocode) => (
+                    <MenuItem key={cocode.id} value={cocode.id}>
+                      {cocode.nombre} - {cocode.zona_nombre}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Cargo</InputLabel>
+              <FormControl fullWidth disabled={!formData.id_cocode_principal || subCocodesFiltered.length === 0}>
+                <InputLabel>Sub-COCODE (Opcional)</InputLabel>
                 <Select
-                  name="cargo"
-                  value={formData.cargo}
+                  name="id_subcocode"
+                  value={formData.id_subcocode}
                   onChange={handleInputChange}
-                  label="Cargo"
+                  label="Sub-COCODE (Opcional)"
                 >
-                  {cargosDisponibles.map((cargo) => (
-                    <MenuItem key={cargo} value={cargo}>
-                      {cargo}
+                  <MenuItem value="">
+                    <em>Ninguno - Será Líder Principal</em>
+                  </MenuItem>
+                  {subCocodesFiltered.map((subcocode) => (
+                    <MenuItem key={subcocode.id} value={subcocode.id}>
+                      {subcocode.nombre} ({subcocode.sector})
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
-
-            {/* Asignación Territorial */}
-            {formData.tipo_lider === 'principal' && (
-              <Grid item xs={12}>
-                <FormControl fullWidth required>
-                  <InputLabel>COCODE Principal</InputLabel>
-                  <Select
-                    name="id_cocode_principal"
-                    value={formData.id_cocode_principal}
-                    onChange={handleInputChange}
-                    label="COCODE Principal"
-                  >
-                    {cocodesPrincipales.map((cocode) => (
-                      <MenuItem key={cocode.id} value={cocode.id}>
-                        {cocode.nombre} - {cocode.zona_nombre}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            )}
-
-            {formData.tipo_lider === 'subcocode' && (
-              <Grid item xs={12}>
-                <FormControl fullWidth required>
-                  <InputLabel>Sub-COCODE</InputLabel>
-                  <Select
-                    name="id_subcocode"
-                    value={formData.id_subcocode}
-                    onChange={handleInputChange}
-                    label="Sub-COCODE"
-                  >
-                    {subCocodes.map((subcocode) => (
-                      <MenuItem key={subcocode.id} value={subcocode.id}>
-                        {subcocode.nombre} ({subcocode.sector}) - {subcocode.cocode_principal}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            )}
-
-            {/* Fechas del Período */}
-            <Grid item xs={12} sx={{ mt: 2 }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                Período de Liderazgo
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                {!formData.id_cocode_principal 
+                  ? 'Primero selecciona un COCODE principal'
+                  : subCocodesFiltered.length === 0
+                    ? 'No hay Sub-COCODEs disponibles para este COCODE'
+                    : formData.id_subcocode
+                      ? 'Será líder de este Sub-COCODE específico'
+                      : 'Si no seleccionas, será Líder Principal del COCODE'
+                }
               </Typography>
-              <Divider />
-            </Grid>
-            
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Fecha de Elección"
-                name="fecha_eleccion"
-                type="date"
-                value={formData.fecha_eleccion}
-                onChange={handleInputChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Inicio del Período"
-                name="periodo_inicio"
-                type="date"
-                value={formData.periodo_inicio}
-                onChange={handleInputChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                label="Fin del Período"
-                name="periodo_fin"
-                type="date"
-                value={formData.periodo_fin}
-                onChange={handleInputChange}
-                InputLabelProps={{ shrink: true }}
-              />
             </Grid>
           </Grid>
         </DialogContent>

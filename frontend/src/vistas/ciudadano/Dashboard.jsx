@@ -1,4 +1,4 @@
-// frontend/src/vistas/ciudadano/Dashboard.jsx - VERSIÓN COMPLETAMENTE RESPONSIVA CON COMENTARIOS
+// frontend/src/vistas/ciudadano/Dashboard.jsx - CON FILTROS Y MEJOR ESTÉTICA
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -48,7 +48,9 @@ import {
   SpeedDialIcon,
   SpeedDialAction,
   Avatar,
-  CardActions
+  CardActions,
+  ToggleButtonGroup,
+  ToggleButton
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -79,7 +81,11 @@ import {
   Category as CategoryIcon,
   PriorityHigh as PriorityIcon,
   Visibility as VisibilityIcon,
-  ChatBubbleOutline as ChatBubbleIcon
+  ChatBubbleOutline as ChatBubbleIcon,
+  FilterList as FilterListIcon,
+  Place as PlaceIcon,
+  AccessTime as AccessTimeIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import LogoutButton from '../../components/common/LogoutButton.jsx';
@@ -108,6 +114,10 @@ const DashboardCiudadano = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // ✅ NUEVO: Estados para filtros
+  const [filtroEstado, setFiltroEstado] = useState('Todos');
+  const [reportesFiltrados, setReportesFiltrados] = useState([]);
 
   // Estados para modales
   const [openNuevoReporte, setOpenNuevoReporte] = useState(false);
@@ -181,6 +191,15 @@ const DashboardCiudadano = () => {
     }
   }, [isMobile]);
 
+  // ✅ NUEVO: Filtrar reportes cuando cambia el filtro o los reportes
+  useEffect(() => {
+    if (filtroEstado === 'Todos') {
+      setReportesFiltrados(misReportes);
+    } else {
+      setReportesFiltrados(misReportes.filter(r => r.estado === filtroEstado));
+    }
+  }, [filtroEstado, misReportes]);
+
   const cargarDatos = async () => {
     try {
       setLoading(true);
@@ -203,8 +222,6 @@ const DashboardCiudadano = () => {
         console.log('✅ Datos recibidos del backend:');
         console.log('📋 Categorías:', datosResponse.categorias_problema?.length || 0);
         console.log('🔧 Tipos:', datosResponse.tipos_problema?.length || 0);
-        console.log('📊 Estructura categorías:', datosResponse.categorias_problema?.[0]);
-        console.log('📊 Estructura tipos:', datosResponse.tipos_problema?.[0]);
       }
       
     } catch (error) {
@@ -431,6 +448,9 @@ const DashboardCiudadano = () => {
   const handleLogout = () => {
     logout();
   };
+
+  // ✅ NUEVO: Obtener estados únicos de los reportes
+  const estadosDisponibles = ['Todos', ...new Set(misReportes.map(r => r.estado))];
 
   const tiposProblemaFiltrados = tiposProblema.filter(
     tipo => !formData.id_categoria_problema || tipo.id_categoria === parseInt(formData.id_categoria_problema)
@@ -820,7 +840,7 @@ const DashboardCiudadano = () => {
                     >
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                         <Box display="flex" alignItems="center" gap={1}>
-                          <PhotoCameraIcon color="primary" />
+                        <PhotoCameraIcon color="primary" />
                           <Typography variant="h6">
                             Evidencia Fotográfica
                           </Typography>
@@ -849,6 +869,7 @@ const DashboardCiudadano = () => {
                       </AccordionDetails>
                     </Accordion>
                   </Grid>
+
                   <Grid item xs={12}>
                     <Button
                       fullWidth
@@ -970,8 +991,10 @@ const DashboardCiudadano = () => {
           </Grid>
         )}
 
+        {/* ✅ TAB MIS REPORTES - MEJORADO CON FILTROS Y MEJOR ESTÉTICA */}
         {tabValue === 1 && (
           <Box>
+            {/* Header con título y botón actualizar */}
             <Box 
               display="flex" 
               justifyContent="space-between" 
@@ -980,9 +1003,15 @@ const DashboardCiudadano = () => {
               flexDirection={{ xs: 'column', sm: 'row' }}
               gap={{ xs: 2, sm: 0 }}
             >
-              <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}>
-                Mis Reportes ({misReportes.length} total)
-              </Typography>
+              <Box>
+                <Typography variant="h5" sx={{ fontSize: { xs: '1.2rem', md: '1.5rem' }, fontWeight: 'bold' }}>
+                  Mis Reportes
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {misReportes.length} {misReportes.length === 1 ? 'reporte creado' : 'reportes creados'}
+                  {filtroEstado !== 'Todos' && ` • Filtrando por: ${filtroEstado}`}
+                </Typography>
+              </Box>
               <Button
                 variant="outlined"
                 startIcon={<RefreshIcon />}
@@ -995,9 +1024,74 @@ const DashboardCiudadano = () => {
               </Button>
             </Box>
 
-            {misReportes.length > 0 ? (
+            {/* ✅ NUEVO: Filtros por estado con chips interactivos */}
+            <Paper elevation={2} sx={{ p: { xs: 2, md: 2.5 }, mb: 3, bgcolor: 'grey.50' }}>
+              <Box display="flex" alignItems="center" gap={1} mb={2}>
+                <FilterListIcon color="primary" />
+                <Typography variant="h6" sx={{ fontSize: { xs: '1rem', md: '1.1rem' } }}>
+                  Filtrar por Estado
+                </Typography>
+              </Box>
+              
+              <Box 
+                display="flex" 
+                flexWrap="wrap" 
+                gap={1}
+                sx={{
+                  '& .MuiChip-root': {
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: 2
+                    }
+                  }
+                }}
+              >
+                {estadosDisponibles.map((estado) => {
+                  const count = estado === 'Todos' 
+                    ? misReportes.length 
+                    : misReportes.filter(r => r.estado === estado).length;
+                  
+                  const estadoInfo = estado === 'Todos' 
+                    ? { color: 'primary' }
+                    : getEstadoInfo(estado);
+
+                  return (
+                    <Chip
+                      key={estado}
+                      label={`${estado} (${count})`}
+                      onClick={() => setFiltroEstado(estado)}
+                      color={filtroEstado === estado ? estadoInfo.color : 'default'}
+                      variant={filtroEstado === estado ? 'filled' : 'outlined'}
+                      sx={{
+                        fontSize: { xs: '0.75rem', md: '0.85rem' },
+                        fontWeight: filtroEstado === estado ? 'bold' : 'normal',
+                        cursor: 'pointer',
+                        borderWidth: 2,
+                        '&:hover': {
+                          borderWidth: 2
+                        }
+                      }}
+                      icon={filtroEstado === estado ? <CheckIcon /> : undefined}
+                    />
+                  );
+                })}
+              </Box>
+
+              {/* Contador de resultados filtrados */}
+              {filtroEstado !== 'Todos' && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    Mostrando <strong>{reportesFiltrados.length}</strong> de <strong>{misReportes.length}</strong> reportes
+                  </Typography>
+                </Alert>
+              )}
+            </Paper>
+
+            {/* Grid de reportes */}
+            {reportesFiltrados.length > 0 ? (
               <Grid container spacing={{ xs: 2, md: 3 }}>
-                {misReportes.map((reporte) => {
+                {reportesFiltrados.map((reporte) => {
                   const estadoInfo = getEstadoInfo(reporte.estado);
                   return (
                     <Grid item xs={12} sm={6} lg={4} key={reporte.id}>
@@ -1007,17 +1101,26 @@ const DashboardCiudadano = () => {
                           height: '100%', 
                           display: 'flex', 
                           flexDirection: 'column',
-                          borderLeft: isMobile ? 'none' : `4px solid ${theme.palette[estadoInfo.color]?.main || theme.palette.primary.main}`
+                          borderLeft: `5px solid ${theme.palette[estadoInfo.color]?.main || theme.palette.primary.main}`,
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                            transform: 'translateY(-4px)',
+                            boxShadow: 6
+                          }
                         }}
                       >
                         <CardContent sx={{ flexGrow: 1, p: { xs: 2, md: 3 } }}>
+                          {/* Header del card con estado */}
                           <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                             <Typography 
                               variant="h6" 
                               gutterBottom
                               sx={{ 
-                                fontSize: { xs: '0.95rem', md: '1.1rem' },
-                                lineHeight: 1.3
+                                fontSize: { xs: '1rem', md: '1.15rem' },
+                                fontWeight: 'bold',
+                                lineHeight: 1.3,
+                                flex: 1,
+                                mr: 1
                               }}
                             >
                               {isMobile && reporte.titulo.length > 40 
@@ -1029,14 +1132,22 @@ const DashboardCiudadano = () => {
                               label={reporte.estado}
                               color={estadoInfo.color}
                               size="small"
-                              sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
+                              sx={{ 
+                                fontSize: { xs: '0.7rem', md: '0.75rem' },
+                                fontWeight: 'bold'
+                              }}
                             />
                           </Box>
 
-                          <Box display="flex" alignItems="center" gap={1} mb={2} flexWrap="wrap">
-                            <Typography variant="body2" color="textSecondary">
-                              <strong>#{reporte.numero_reporte}</strong>
-                            </Typography>
+                          {/* Número de reporte y badges */}
+                          <Box display="flex" alignItems="center" gap={0.5} mb={2} flexWrap="wrap">
+                            <Chip 
+                              label={`#${reporte.numero_reporte}`}
+                              size="small"
+                              variant="outlined"
+                              color="primary"
+                              sx={{ fontSize: { xs: '0.65rem', md: '0.7rem' }, fontWeight: 'bold' }}
+                            />
                             {reporte.fotos_firebase > 0 && (
                               <Chip 
                                 label={`${reporte.fotos_firebase} Firebase`}
@@ -1056,7 +1167,7 @@ const DashboardCiudadano = () => {
                             />
                             {reporte.comentarios_count > 0 && (
                               <Chip 
-                                label={`${reporte.comentarios_count} comentarios`}
+                                label={`${reporte.comentarios_count}`}
                                 size="small"
                                 icon={<CommentIcon />}
                                 color="info"
@@ -1066,11 +1177,14 @@ const DashboardCiudadano = () => {
                             )}
                           </Box>
 
+                          {/* Descripción */}
                           <Typography 
                             variant="body2" 
+                            color="textSecondary"
                             sx={{ 
                               mb: 2,
-                              fontSize: { xs: '0.8rem', md: '0.875rem' }
+                              fontSize: { xs: '0.8rem', md: '0.875rem' },
+                              lineHeight: 1.5
                             }}
                           >
                             {isMobile && reporte.descripcion.length > 80
@@ -1079,40 +1193,83 @@ const DashboardCiudadano = () => {
                             }
                           </Typography>
 
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={reporte.progreso_porcentaje || estadoInfo.progreso}
-                            color={estadoInfo.color}
-                            sx={{ height: { xs: 4, md: 6 }, borderRadius: 3, mb: 2 }}
-                          />
-
-                          <Typography 
-                            variant="caption" 
-                            color="textSecondary"
-                            sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}
-                          >
-                            {estadoInfo.descripcion}
-                          </Typography>
-
-                          {!isMobile && (
-                            <Box mt={2}>
-                              <Typography variant="caption" color="textSecondary" display="block">
-                                <LocationIcon sx={{ fontSize: 12, mr: 0.5 }} />
-                                {reporte.direccion}
+                          {/* Barra de progreso */}
+                          <Box mb={2}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold' }}>
+                                Progreso
                               </Typography>
-                              <Typography variant="caption" color="textSecondary" display="block">
-                                Creado: {new Date(reporte.fecha_reporte).toLocaleDateString()}
+                              <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold' }}>
+                                {reporte.progreso_porcentaje || estadoInfo.progreso}%
                               </Typography>
                             </Box>
-                          )}
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={reporte.progreso_porcentaje || estadoInfo.progreso}
+                              color={estadoInfo.color}
+                              sx={{ height: { xs: 6, md: 8 }, borderRadius: 3 }}
+                            />
+                          </Box>
+
+                          {/* Info adicional con iconos */}
+                          <Stack spacing={0.5}>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <PlaceIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                                {isMobile && reporte.direccion.length > 30
+                                  ? `${reporte.direccion.substring(0, 30)}...`
+                                  : reporte.direccion
+                                }
+                              </Typography>
+                            </Box>
+                            
+                            {reporte.sector && (
+                              <Box display="flex" alignItems="center" gap={0.5}>
+                                <HomeIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                                <Typography variant="caption" color="success.main" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' }, fontWeight: 'bold' }}>
+                                  Sector: {reporte.sector}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <CalendarIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                                Creado: {new Date(reporte.fecha_reporte).toLocaleDateString('es-GT', { 
+                                  day: '2-digit', 
+                                  month: 'short', 
+                                  year: 'numeric' 
+                                })}
+                              </Typography>
+                            </Box>
+
+                            {reporte.dias_creado !== null && (
+                              <Box display="flex" alignItems="center" gap={0.5}>
+                                <AccessTimeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                                  Hace {Math.floor(reporte.dias_creado)} {Math.floor(reporte.dias_creado) === 1 ? 'día' : 'días'}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            {reporte.tecnico_asignado && (
+                              <Box display="flex" alignItems="center" gap={0.5}>
+                                <PersonIcon sx={{ fontSize: 14, color: 'primary.main' }} />
+                                <Typography variant="caption" color="primary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' }, fontWeight: 'bold' }}>
+                                  Técnico: {reporte.tecnico_asignado}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Stack>
                         </CardContent>
 
+                        {/* Acciones del card */}
                         <CardActions sx={{ p: { xs: 2, md: 3 }, pt: 0 }}>
                           <Stack spacing={1} sx={{ width: '100%' }}>
                             <Box display="flex" gap={1}>
                               <Button
                                 size="small"
-                                variant="outlined"
+                                variant="contained"
                                 startIcon={<VisibilityIcon />}
                                 onClick={() => abrirModalDetallesReporte(reporte)}
                                 sx={{ 
@@ -1164,10 +1321,16 @@ const DashboardCiudadano = () => {
               <Paper elevation={2} sx={{ p: { xs: 3, md: 4 }, textAlign: 'center' }}>
                 <ReporteIcon sx={{ fontSize: { xs: 50, md: 60 }, color: 'grey.400', mb: 2 }} />
                 <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
-                  No has creado reportes aún
+                  {filtroEstado === 'Todos' 
+                    ? 'No has creado reportes aún'
+                    : `No tienes reportes en estado "${filtroEstado}"`
+                  }
                 </Typography>
                 <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                  Crea tu primer reporte para empezar a participar en tu comunidad
+                  {filtroEstado === 'Todos'
+                    ? 'Crea tu primer reporte para empezar a participar en tu comunidad'
+                    : 'Intenta con otro filtro o crea un nuevo reporte'
+                  }
                 </Typography>
                 <Button 
                   variant="contained" 
@@ -1180,7 +1343,7 @@ const DashboardCiudadano = () => {
                     textTransform: 'none'
                   }}
                 >
-                  Crear Mi Primer Reporte
+                  {filtroEstado === 'Todos' ? 'Crear Mi Primer Reporte' : 'Crear Nuevo Reporte'}
                 </Button>
               </Paper>
             )}
@@ -1372,7 +1535,7 @@ const DashboardCiudadano = () => {
         <DialogTitle sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1}>
-              <VisibilityIcon />
+            <VisibilityIcon />
               Detalles del Reporte
             </Box>
             {isMobile && (
@@ -1420,6 +1583,11 @@ const DashboardCiudadano = () => {
                 <Typography variant="body2" paragraph>
                   <strong>Dirección:</strong> {selectedReporte.direccion}
                 </Typography>
+                {selectedReporte.sector && (
+                  <Typography variant="body2" paragraph>
+                    <strong>Sector:</strong> {selectedReporte.sector}
+                  </Typography>
+                )}
                 <Typography variant="body2">
                   <strong>Creado:</strong> {new Date(selectedReporte.fecha_reporte).toLocaleDateString()}
                 </Typography>
@@ -1477,7 +1645,7 @@ const DashboardCiudadano = () => {
           display="block"
           sx={{ mt: 1, fontSize: { xs: '0.7rem', md: '0.75rem' } }}
         >
-          Funcionalidades del ciudadano: ✓ Crear reportes ✓ Ver mis reportes ✓ Comentar mis reportes ✓ Ver comentarios públicos ✓ Seguimiento en tiempo real
+          Funcionalidades del ciudadano: ✓ Crear reportes ✓ Ver mis reportes ✓ Comentar mis reportes ✓ Ver comentarios públicos ✓ Seguimiento en tiempo real ✓ Filtros por estado
         </Typography>
       </Box>
     </Box>

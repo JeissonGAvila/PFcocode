@@ -13,7 +13,6 @@ import {
   LocationOn as LocationIcon,
   Badge as BadgeIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Lock as LockIcon,
@@ -39,7 +38,10 @@ const GestionCiudadanos = () => {
   const [telefono, setTelefono] = useState('');
   const [dpi, setDpi] = useState('');
   const [direccion, setDireccion] = useState('');
-  const [zonaSeleccionada, setZonaSeleccionada] = useState('');
+  
+  // 🔧 NUEVO: Estados para selects en cascada (igual que líderes)
+  const [cocodeSeleccionado, setCocodeSeleccionado] = useState(''); // Solo para filtrar
+  const [subcocodeSeleccionado, setSubcocodeSeleccionado] = useState(''); // Se envía al backend
   
   // Estados para modales
   const [modalPassword, setModalPassword] = useState(false);
@@ -51,20 +53,43 @@ const GestionCiudadanos = () => {
   const [busqueda, setBusqueda] = useState('');
   const [estadisticas, setEstadisticas] = useState(null);
   
-  // Datos simulados para zonas (después conectar con API)
-  const [zonas] = useState([
-    { id: 1, nombre: 'Zona 1 - Centro' },
-    { id: 2, nombre: 'Zona 2 - Norte' },
-    { id: 3, nombre: 'Zona 3 - Sur' },
-    { id: 4, nombre: 'Zona 4 - Este' },
-    { id: 5, nombre: 'Zona 5 - Oeste' }
-  ]);
+  // 🔧 NUEVO: Estados para datos de selects
+  const [cocodes, setCocodes] = useState([]);
+  const [subcodes, setSubcodes] = useState([]);
+  const [subcocodesDisponibles, setSubcocodesDisponibles] = useState([]);
 
   // Cargar datos al montar el componente
   useEffect(() => {
     fetchCiudadanos();
     fetchEstadisticas();
+    fetchDatosSelect(); // 👈 NUEVO: Cargar COCODEs y Sub-COCODEs
   }, []);
+
+  // 🔧 NUEVO: Filtrar Sub-COCODEs cuando cambia el COCODE seleccionado
+  useEffect(() => {
+    if (cocodeSeleccionado) {
+      const subcocodesDelCocode = subcodes.filter(
+        sub => sub.cocode_principal_id === parseInt(cocodeSeleccionado)
+      );
+      setSubcocodesDisponibles(subcocodesDelCocode);
+      setSubcocodeSeleccionado(''); // Resetear selección de subcocode
+    } else {
+      setSubcocodesDisponibles([]);
+      setSubcocodeSeleccionado('');
+    }
+  }, [cocodeSeleccionado, subcodes]);
+
+  // 🔧 NUEVO: Obtener datos para selects (COCODEs y Sub-COCODEs)
+  const fetchDatosSelect = async () => {
+    try {
+      const data = await ciudadanosService.getDatosSelect();
+      setCocodes(data.cocodes || []);
+      setSubcodes(data.subcodes || []);
+    } catch (error) {
+      console.error('Error al obtener datos para selects:', error);
+      setMensaje('Error al cargar datos de zonas y sectores');
+    }
+  };
 
   const fetchCiudadanos = async () => {
     try {
@@ -93,13 +118,18 @@ const GestionCiudadanos = () => {
     setMensaje('');
 
     // Validaciones
-    if (!nombre.trim() || !apellido.trim() || !correo.trim() || !dpi.trim()) {
-      setMensaje('Por favor completa los campos obligatorios (Nombre, Apellido, Correo y DPI).');
+    if (!nombre.trim() || !apellido.trim() || !correo.trim()) {
+      setMensaje('Por favor completa los campos obligatorios (Nombre, Apellido y Correo).');
       return;
     }
 
     if (!editId && !contrasena.trim()) {
       setMensaje('La contraseña es obligatoria para nuevos ciudadanos.');
+      return;
+    }
+
+    if (!subcocodeSeleccionado) {
+      setMensaje('Debes seleccionar un sector (Sub-COCODE).');
       return;
     }
 
@@ -110,8 +140,8 @@ const GestionCiudadanos = () => {
       return;
     }
 
-    // Validar DPI (13 dígitos)
-    if (dpi.length !== 13 || !/^\d+$/.test(dpi)) {
+    // Validar DPI si fue proporcionado
+    if (dpi && (dpi.length !== 13 || !/^\d+$/.test(dpi))) {
       setMensaje('El DPI debe tener exactamente 13 dígitos.');
       return;
     }
@@ -122,9 +152,9 @@ const GestionCiudadanos = () => {
         apellido: apellido.trim(),
         correo: correo.trim().toLowerCase(),
         telefono: telefono.trim(),
-        dpi: dpi.trim(),
-        direccion_completa: direccion.trim(),
-        id_zona: zonaSeleccionada || null,
+        dpi: dpi.trim() || null,
+        direccion: direccion.trim(),
+        id_subcocode: parseInt(subcocodeSeleccionado), // 👈 SOLO enviamos subcocode
         usuario_ingreso: 'admin'
       };
 
@@ -147,7 +177,8 @@ const GestionCiudadanos = () => {
       }
 
       limpiarFormulario();
-      fetchEstadisticas(); // Actualizar estadísticas
+      fetchEstadisticas();
+      fetchCiudadanos(); // Recargar lista completa con JOINs
     } catch (error) {
       console.error('Error:', error);
       setMensaje(error.message || 'Ocurrió un error al procesar la solicitud.');
@@ -159,11 +190,20 @@ const GestionCiudadanos = () => {
     setNombre(ciudadano.nombre);
     setApellido(ciudadano.apellido);
     setCorreo(ciudadano.correo);
-    setContrasena(''); // No mostrar contraseña existente
+    setContrasena('');
     setTelefono(ciudadano.telefono || '');
-    setDpi(ciudadano.dpi);
-    setDireccion(ciudadano.direccion_completa || '');
-    setZonaSeleccionada(ciudadano.id_zona || '');
+    setDpi(ciudadano.dpi || '');
+    setDireccion(ciudadano.direccion || '');
+    
+    // 🔧 NUEVO: Establecer COCODE y Sub-COCODE para edición
+    if (ciudadano.id_subcocode) {
+      const subcocode = subcodes.find(s => s.id === ciudadano.id_subcocode);
+      if (subcocode) {
+        setCocodeSeleccionado(subcocode.cocode_principal_id.toString());
+        setSubcocodeSeleccionado(ciudadano.id_subcocode.toString());
+      }
+    }
+    
     setMensaje('');
   };
 
@@ -214,7 +254,7 @@ const GestionCiudadanos = () => {
     try {
       await ciudadanosService.verificar(id, verificado, 'admin');
       setMensaje(verificado ? 'Ciudadano verificado' : 'Verificación removida');
-      fetchCiudadanos(); // Actualizar lista
+      fetchCiudadanos();
     } catch (error) {
       console.error('Error:', error);
       setMensaje('Error al cambiar estado de verificación.');
@@ -230,7 +270,8 @@ const GestionCiudadanos = () => {
     setTelefono('');
     setDpi('');
     setDireccion('');
-    setZonaSeleccionada('');
+    setCocodeSeleccionado('');
+    setSubcocodeSeleccionado('');
   };
 
   const handleCancelar = () => {
@@ -243,7 +284,7 @@ const GestionCiudadanos = () => {
       ciudadano.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       ciudadano.apellido.toLowerCase().includes(busqueda.toLowerCase()) ||
       ciudadano.correo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      ciudadano.dpi.includes(busqueda);
+      (ciudadano.dpi && ciudadano.dpi.includes(busqueda));
     
     const matchZona = !filtroZona || ciudadano.id_zona === parseInt(filtroZona);
     
@@ -368,10 +409,9 @@ const GestionCiudadanos = () => {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="DPI *"
+                label="DPI"
                 value={dpi}
                 onChange={(e) => setDpi(e.target.value)}
-                required
                 placeholder="1234567890123"
                 inputProps={{ maxLength: 13 }}
                 InputProps={{
@@ -393,18 +433,40 @@ const GestionCiudadanos = () => {
                 }}
               />
             </Grid>
+
+            {/* 🔧 NUEVO: Selects en cascada (COCODE → Sub-COCODE) */}
             <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Zona</InputLabel>
+              <FormControl fullWidth required>
+                <InputLabel>COCODE Principal *</InputLabel>
                 <Select
-                  value={zonaSeleccionada}
-                  onChange={(e) => setZonaSeleccionada(e.target.value)}
+                  value={cocodeSeleccionado}
+                  onChange={(e) => setCocodeSeleccionado(e.target.value)}
+                  label="COCODE Principal *"
                   startAdornment={<LocationIcon sx={{ mr: 1, color: 'text.secondary' }} />}
                 >
-                  <MenuItem value="">Seleccionar zona</MenuItem>
-                  {zonas.map((zona) => (
-                    <MenuItem key={zona.id} value={zona.id}>
-                      {zona.nombre}
+                  <MenuItem value="">Seleccionar COCODE</MenuItem>
+                  {cocodes.map((cocode) => (
+                    <MenuItem key={cocode.id} value={cocode.id}>
+                      {cocode.nombre} - {cocode.nombre_zona}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required disabled={!cocodeSeleccionado}>
+                <InputLabel>Sector (Sub-COCODE) *</InputLabel>
+                <Select
+                  value={subcocodeSeleccionado}
+                  onChange={(e) => setSubcocodeSeleccionado(e.target.value)}
+                  label="Sector (Sub-COCODE) *"
+                  startAdornment={<LocationIcon sx={{ mr: 1, color: 'text.secondary' }} />}
+                >
+                  <MenuItem value="">Seleccionar sector</MenuItem>
+                  {subcocodesDisponibles.map((subcocode) => (
+                    <MenuItem key={subcocode.id} value={subcocode.id}>
+                      {subcocode.nombre} {subcocode.sector ? `(${subcocode.sector})` : ''}
                     </MenuItem>
                   ))}
                 </Select>
@@ -438,6 +500,7 @@ const GestionCiudadanos = () => {
                   onChange={(e) => setContrasena(e.target.value)}
                   required
                   inputProps={{ minLength: 6 }}
+                  helperText="Mínimo 6 caracteres"
                   InputProps={{
                     startAdornment: <LockIcon sx={{ mr: 1, color: 'text.secondary' }} />
                   }}
@@ -451,6 +514,7 @@ const GestionCiudadanos = () => {
             <Alert 
               severity={mensaje.includes('Error') || mensaje.includes('error') ? 'error' : 'success'} 
               sx={{ mt: 3 }}
+              onClose={() => setMensaje('')}
             >
               {mensaje}
             </Alert>
@@ -483,7 +547,7 @@ const GestionCiudadanos = () => {
       {/* Filtros y Búsqueda */}
       <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
             <TextField
               fullWidth
               placeholder="Buscar por nombre, correo o DPI..."
@@ -495,27 +559,10 @@ const GestionCiudadanos = () => {
             />
           </Grid>
           <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Filtrar por Zona</InputLabel>
-              <Select
-                value={filtroZona}
-                onChange={(e) => setFiltroZona(e.target.value)}
-              >
-                <MenuItem value="">Todas las zonas</MenuItem>
-                {zonas.map((zona) => (
-                  <MenuItem key={zona.id} value={zona.id}>
-                    {zona.nombre}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} md={2}>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon />}
               onClick={() => {
-                // TODO: Implementar exportación
                 setMensaje('Función de exportación próximamente');
               }}
             >
@@ -546,13 +593,10 @@ const GestionCiudadanos = () => {
                   Contacto
                 </TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Zona
+                  Sector
                 </TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
                   Dirección
-                </TableCell>
-                <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Estado
                 </TableCell>
                 <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>
                   Acciones
@@ -562,7 +606,7 @@ const GestionCiudadanos = () => {
             <TableBody>
               {ciudadanosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                     <Typography variant="body1" color="textSecondary">
                       {busqueda || filtroZona ? 'No se encontraron ciudadanos con los filtros aplicados' : 'No hay ciudadanos registrados'}
                     </Typography>
@@ -585,9 +629,15 @@ const GestionCiudadanos = () => {
                     
                     {/* DPI */}
                     <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
-                        {ciudadano.dpi}
-                      </Typography>
+                      {ciudadano.dpi ? (
+                        <Typography variant="body2" fontFamily="monospace">
+                          {ciudadano.dpi}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="textSecondary">
+                          Sin DPI
+                        </Typography>
+                      )}
                     </TableCell>
                     
                     {/* Contacto */}
@@ -603,26 +653,34 @@ const GestionCiudadanos = () => {
                       )}
                     </TableCell>
                     
-                    {/* Zona */}
+                    {/* Sector con zona */}
                     <TableCell>
-                      {ciudadano.nombre_zona ? (
-                        <Chip 
-                          label={ciudadano.nombre_zona} 
-                          size="small" 
-                          color="info"
-                          variant="outlined"
-                        />
-                      ) : (
-                        <Typography variant="body2" color="textSecondary">
-                          Sin zona
-                        </Typography>
-                      )}
+                      <Box>
+                        {ciudadano.nombre_subcocode && (
+                          <Chip 
+                            label={ciudadano.nombre_subcocode} 
+                            size="small" 
+                            color="primary"
+                            sx={{ mb: 0.5 }}
+                          />
+                        )}
+                        {ciudadano.nombre_zona && (
+                          <Typography variant="caption" display="block" color="textSecondary">
+                            📍 {ciudadano.nombre_zona}
+                          </Typography>
+                        )}
+                        {!ciudadano.nombre_subcocode && !ciudadano.nombre_zona && (
+                          <Typography variant="body2" color="textSecondary">
+                            Sin asignar
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     
                     {/* Dirección */}
                     <TableCell>
-                      {ciudadano.direccion_completa ? (
-                        <Tooltip title={ciudadano.direccion_completa}>
+                      {ciudadano.direccion ? (
+                        <Tooltip title={ciudadano.direccion}>
                           <Typography 
                             variant="body2" 
                             sx={{ 
@@ -632,7 +690,7 @@ const GestionCiudadanos = () => {
                               whiteSpace: 'nowrap'
                             }}
                           >
-                            {ciudadano.direccion_completa}
+                            {ciudadano.direccion}
                           </Typography>
                         </Tooltip>
                       ) : (
@@ -640,26 +698,6 @@ const GestionCiudadanos = () => {
                           Sin dirección
                         </Typography>
                       )}
-                    </TableCell>
-                    
-                    {/* Estado */}
-                    <TableCell>
-                      <Stack spacing={1}>
-                        <Chip 
-                          label="Activo" 
-                          color="success" 
-                          size="small"
-                          icon={<CheckCircleIcon />}
-                        />
-                        {/* Simular estado de verificación */}
-                        <Chip 
-                          label={Math.random() > 0.5 ? "Verificado" : "Sin verificar"} 
-                          color={Math.random() > 0.5 ? "primary" : "default"}
-                          size="small"
-                          variant="outlined"
-                          icon={<VerifiedIcon />}
-                        />
-                      </Stack>
                     </TableCell>
                     
                     {/* Acciones */}
@@ -685,11 +723,11 @@ const GestionCiudadanos = () => {
                           </IconButton>
                         </Tooltip>
                         
-                        <Tooltip title="Verificar/Des-verificar">
+                        <Tooltip title="Verificar">
                           <IconButton 
                             size="small" 
-                            color="info"
-                            onClick={() => handleVerificar(ciudadano.id, !Math.random() > 0.5)}
+                            color={ciudadano.verificado_por_lider ? "success" : "default"}
+                            onClick={() => handleVerificar(ciudadano.id, !ciudadano.verificado_por_lider)}
                           >
                             <VerifiedIcon />
                           </IconButton>

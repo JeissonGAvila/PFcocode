@@ -1,4 +1,4 @@
-// frontend/src/services/admin/lideresService.js
+// frontend/src/services/admin/lideresService.js - ACTUALIZADO
 import { apiService } from '../api.js';
 
 const lideresService = {
@@ -54,7 +54,7 @@ const lideresService = {
     }
   },
 
-  // Obtener datos para selects (COCODE, Sub-COCODE, etc.)
+  // Obtener datos para selects (COCODE, Sub-COCODE, Zonas)
   getDatosSelect: async () => {
     try {
       const response = await apiService.get('/api/admin/lideres/datos');
@@ -81,29 +81,5 @@ const lideresService = {
     }
   }
 };
-
-// Datos estáticos útiles
-export const tiposLiderDisponibles = [
-  { value: 'principal', label: 'Líder Principal COCODE' },
-  { value: 'subcocode', label: 'Líder Sub-COCODE' }
-];
-
-export const cargosDisponibles = [
-  'Presidente/a',
-  'Vicepresidente/a', 
-  'Secretario/a',
-  'Tesorero/a',
-  'Vocal I',
-  'Vocal II',
-  'Vocal III'
-];
-
-export const departamentosLideres = [
-  'Organización Comunitaria',
-  'Desarrollo Social',
-  'Proyectos Comunitarios',
-  'Coordinación Municipal',
-  'Gestión de Recursos'
-];
 
 export default lideresService;
