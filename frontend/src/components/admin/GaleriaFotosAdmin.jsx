@@ -65,7 +65,7 @@ const GaleriaFotosAdmin = ({ fotos = [], maxHeight = 200, titulo = "Fotos del Re
     
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
-      : 'http://localhost:3001'; // BORRAR LA RUTA FORZADA
+      : ''; // BORRAR LA RUTA FORZADA
     
     const ruta = foto.url_archivo.startsWith('/') 
       ? foto.url_archivo 

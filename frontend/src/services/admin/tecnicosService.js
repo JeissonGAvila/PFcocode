@@ -1,5 +1,5 @@
 // frontend/src/services/admin/tecnicosService.js
-const API_BASE_URL = 'http://localhost:3001/api'; //CAMBIAR ESTA LINEA, CONFIGURAR API.JS PARA LOS SERVICIOS O USAR EL NOMBRE DEL DOMINIO (jason)
+const API_BASE_URL = 'http://jason.hopitalbarillas.cloud/api'; //CAMBIAR ESTA LINEA, CONFIGURAR API.JS PARA LOS SERVICIOS O USAR EL NOMBRE DEL DOMINIO (jason)
 
 // 🛠️ Helper function para manejar respuestas
 const handleResponse = async (response) => {
