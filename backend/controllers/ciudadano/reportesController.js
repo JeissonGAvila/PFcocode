@@ -1,4 +1,4 @@
-// backend/controllers/ciudadano/reportesController.js - CORREGIDO CON id_subcocode_area
+// backend/controllers/ciudadano/reportesController.js - CORREGIDO CON id_subcocode
 const pool = require('../../models/db');
 const { guardarArchivosFirebaseDB, getArchivosReporteDB } = require('../firebaseController');
 
@@ -52,20 +52,20 @@ const crearReporte = async (req, res) => {
       }
     }
 
-    // ✅ CORREGIDO: Obtener ciudadano con id_subcocode_area
+    // ✅ CORREGIDO: Obtener ciudadano con id_subcocode
     const ciudadanoQuery = `
       SELECT 
         c.id, 
         c.nombre, 
         c.apellido, 
         c.id_zona, 
-        c.id_subcocode_area,
+        c.id_subcocode,
         c.correo, 
         c.telefono,
         sc.nombre as nombre_sector,
         z.nombre as nombre_zona
       FROM ciudadanos_colaboradores c
-      LEFT JOIN subcocode sc ON c.id_subcocode_area = sc.id
+      LEFT JOIN subcocode sc ON c.id_subcocode = sc.id
       LEFT JOIN zonas z ON c.id_zona = z.id
       WHERE c.id = $1 AND c.estado = TRUE
     `;
@@ -113,13 +113,13 @@ const crearReporte = async (req, res) => {
     const metodoFinal = metodo_ubicacion || 'manual';
     const precisionFinal = precision_metros || null;
 
-    // ✅ CORREGIDO: Insertar con id_subcocode_area
+    // ✅ CORREGIDO: Insertar con id_subcocode
     const insertQuery = `
       INSERT INTO reportes (
         numero_reporte, titulo, descripcion, direccion,
         id_tipo_problema, prioridad, id_estado,
         id_ciudadano_colaborador, tipo_usuario_creador,
-        id_zona, id_subcocode_area, latitud, longitud,
+        id_zona, id_subcocode, latitud, longitud,
         metodo_ubicacion, precision_metros,
         fecha_reporte, usuario_ingreso
       ) VALUES (
@@ -133,7 +133,7 @@ const crearReporte = async (req, res) => {
       id_tipo_problema, prioridad, estadoNuevoId,
       ciudadanoId, 
       ciudadano.id_zona,
-      ciudadano.id_subcocode_area, // ✅ CORREGIDO
+      ciudadano.id_subcocode, // ✅ CORREGIDO
       latFinal, lngFinal, metodoFinal, precisionFinal,
       `ciudadano_${ciudadanoId}`
     ]);
@@ -279,7 +279,7 @@ const getArchivosReporte = async (req, res) => {
   }
 };
 
-// ✅ CORREGIDO: getMisReportes con id_subcocode_area
+// ✅ CORREGIDO: getMisReportes con id_subcocode
 const getMisReportes = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
@@ -334,7 +334,7 @@ const getMisReportes = async (req, res) => {
       JOIN estados_reporte er ON r.id_estado = er.id
       JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
       LEFT JOIN zonas z ON r.id_zona = z.id
-      LEFT JOIN subcocode sc ON r.id_subcocode_area = sc.id
+      LEFT JOIN subcocode sc ON r.id_subcocode = sc.id
       LEFT JOIN administradores a ON r.id_administrador_asignado = a.id
       WHERE r.id_ciudadano_colaborador = $1 
         AND r.estado = TRUE
@@ -414,27 +414,27 @@ const getTiposProblema = async (req, res) => {
   }
 };
 
-// ✅ CORREGIDO: getDatosFormulario con id_subcocode_area
+// ✅ CORREGIDO: getDatosFormulario con id_subcocode
 const getDatosFormulario = async (req, res) => {
   try {
     const ciudadanoId = req.user.id;
 
     console.log('🔍 Obteniendo datos para formulario de reporte...');
 
-    // ✅ CORREGIDO: Query con id_subcocode_area
+    // ✅ CORREGIDO: Query con id_subcocode
     const ciudadanoQuery = `
       SELECT 
         c.nombre, 
         c.apellido, 
         c.direccion, 
         c.id_zona,
-        c.id_subcocode_area,
+        c.id_subcocode,
         z.nombre as zona,
         sc.nombre as sector,
         sc.sector as sector_descripcion
       FROM ciudadanos_colaboradores c
       LEFT JOIN zonas z ON c.id_zona = z.id
-      LEFT JOIN subcocode sc ON c.id_subcocode_area = sc.id
+      LEFT JOIN subcocode sc ON c.id_subcocode = sc.id
       WHERE c.id = $1 AND c.estado = TRUE
     `;
     
@@ -492,7 +492,7 @@ const getDatosFormulario = async (req, res) => {
       firebase_enabled: true,
       comentarios_enabled: true,
       sector_info: {
-        tiene_sector: !!ciudadanoResult.rows[0]?.id_subcocode_area,
+        tiene_sector: !!ciudadanoResult.rows[0]?.id_subcocode,
         sector: ciudadanoResult.rows[0]?.sector,
         zona: ciudadanoResult.rows[0]?.zona
       },

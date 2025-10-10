@@ -393,7 +393,7 @@ const LoginForm = ({ onLoginSuccess }) => {
                   }
                 }}
               >
-                🧪 {showTestUsers ? 'Ocultar' : 'Mostrar'} usuarios de prueba
+                👀 {showTestUsers ? 'Ocultar' : 'Mostrar'} Bienvenido
               </Button>
               
               <Collapse in={showTestUsers}>

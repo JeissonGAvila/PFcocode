@@ -10,7 +10,7 @@ const login = async (req, res) => {
   const { correo, contrasena } = req.body;
 
   try {
-    console.log(`🔐 Intento de login: ${correo}`);
+    console.log(`🔍 Intento de login: ${correo}`);
     
     // Validar datos de entrada
     if (!correo || !contrasena) {
@@ -83,7 +83,8 @@ const login = async (req, res) => {
           validarCiudadanos: true,
           coordinarTecnicos: true,
           id_zona: usuario.id_zona,
-          id_cocode: usuario.id_cocode_principal
+          id_cocode: usuario.id_cocode_principal,
+          id_subcocode: usuario.id_subcocode  // ✅ AGREGADO - Esta es la única línea nueva
         };
       }
     }
@@ -112,7 +113,8 @@ const login = async (req, res) => {
           comentarReportes: true,
           actualizarPerfil: true,
           id_ciudadano: usuario.id,
-          id_zona: usuario.id_zona
+          id_zona: usuario.id_zona,
+          id_subcocode: usuario.id_subcocode  // ✅ También para ciudadanos
         };
       }
     }
@@ -126,7 +128,7 @@ const login = async (req, res) => {
     }
 
     console.log(`🔍 Usuario encontrado: ${usuario.nombre} ${usuario.apellido} (${tipoUsuario})`);
-    console.log(`🔐 Verificando contraseña hasheada...`);
+    console.log(`🔍 Verificando contraseña hasheada...`);
 
     // Verificar contraseña hasheada
     const contrasenaValida = await bcrypt.compare(contrasena, usuario.contrasena);

@@ -71,7 +71,7 @@ const GaleriaFotosTecnico = ({ fotos = [], maxHeight = 200, titulo = "Evidencia 
     
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
-      : 'http://localhost:3003';
+      : 'http://localhost:3001';//BORRAR ESTA LINEA (OJO SIEMPRE HACER PRUEBAS PARA VER SI LEVANTA CORRECTAMENTE)
     
     const ruta = foto.url_archivo.startsWith('/') 
       ? foto.url_archivo 

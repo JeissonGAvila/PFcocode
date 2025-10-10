@@ -13,7 +13,7 @@ initializeFirebase();
 // ========================================
 // 🌐 CONFIGURACIÓN CORS PARA PRODUCCIÓN
 // ========================================
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+/*const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
   : ['http://localhost:3000', 'http://localhost:5173'];
 
@@ -32,7 +32,8 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-};
+};*/  //QUITAR TODO EL BLOQUE DE CODIGO, SI ES POSIBLE CONSULTAR ANTES DE HACERLO YA QUE LO TRABAJAMOS EN EL .ENV PARA PERMITIR
+//USAR CORS Y PETICIONES
 
 // Aplicar CORS y middlewares
 app.use(cors(corsOptions));
@@ -40,7 +41,7 @@ app.use(express.json());
 
 console.log('🔐 CORS configurado para:', allowedOrigins);
 console.log('📍 Modo:', process.env.NODE_ENV || 'development');
-console.log('🔗 URL Base:', process.env.BASE_URL || 'http://localhost:3003');
+console.log('🔗 URL Base:', process.env.BASE_URL || 'http://localhost:3001'); //Quitar: || 'http://localhost:3001
 
 // ===================================
 // SERVIR ARCHIVOS ESTÁTICOS (FOTOS) - LEGACY PARA MIGRACIÓN
@@ -59,7 +60,7 @@ app.get('/api/test', (req, res) => {
     timestamp: new Date().toISOString(),
     firebase: 'enabled',
     environment: process.env.NODE_ENV || 'development',
-    baseUrl: process.env.BASE_URL || 'http://localhost:3003'
+    baseUrl: process.env.BASE_URL || 'http://localhost:3001' //BORRAR: || 'http://localhost:3001'
   });
 });
 
@@ -252,7 +253,7 @@ app.use((error, req, res, next) => {
 // ===================================
 // 🚀 INICIAR SERVIDOR
 // ===================================
-const PORT = process.env.PORT || 3003;
+const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`\n${'='.repeat(60)}`);
