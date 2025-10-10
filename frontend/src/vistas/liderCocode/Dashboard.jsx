@@ -202,7 +202,7 @@ const DashboardLider = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3003/api/lider/reportes/pendientes', {
+      const response = await fetch('https://jason.hopitalbarillas.cloud/api/lider/reportes/pendientes', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -228,7 +228,7 @@ const DashboardLider = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/lider/reportes/zona?limit=50', {
+      const response = await fetch('https://jason.hopitalbarillas.cloud/api/lider/reportes/zona?limit=50', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -272,7 +272,7 @@ const DashboardLider = () => {
       if (busquedaTexto.trim()) params.append('busqueda', busquedaTexto.trim());
       params.append('limit', '50');
 
-      const url = `http://localhost:3001/api/lider/reportes/zona${params.toString() ? `?${params.toString()}` : ''}`;
+      const url = `https://jason.hopitalbarillas.cloud/api/lider/reportes/zona${params.toString() ? `?${params.toString()}` : ''}`;
 
       const response = await fetch(url, {
         method: 'GET',

@@ -1,4 +1,3 @@
-// backend/index.js - PRODUCCIÓN CON FIREBASE Y CORS
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -6,20 +5,15 @@ require('dotenv').config();
 
 const app = express();
 
-// 🔥 INICIALIZAR FIREBASE ADMIN SDK
 const { initializeFirebase } = require('./config/firebase');
 initializeFirebase();
 
-// ========================================
-// 🌐 CONFIGURACIÓN CORS PARA PRODUCCIÓN
-// ========================================
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:3000', 'http://localhost:5173'];
+  : [];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permitir requests sin origin (como mobile apps o curl)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -34,17 +28,13 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-// Aplicar CORS y middlewares
 app.use(cors(corsOptions));
 app.use(express.json());
 
 console.log('🔐 CORS configurado para:', allowedOrigins);
 console.log('📍 Modo:', process.env.NODE_ENV || 'development');
-console.log('🔗 URL Base:', process.env.BASE_URL || 'http://localhost:3003');
+console.log('🔗 URL Base:', process.env.BASE_URL);
 
-// ===================================
-// SERVIR ARCHIVOS ESTÁTICOS (FOTOS) - LEGACY PARA MIGRACIÓN
-// ===================================
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
@@ -52,18 +42,16 @@ console.log('📁 Servidor de archivos estáticos configurado (legacy)');
 console.log('📸 Ruta de uploads:', path.join(__dirname, 'uploads'));
 console.log('🔥 Firebase Storage configurado para nuevos archivos');
 
-// Ruta de prueba básica
 app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'Servidor funcionando correctamente con Firebase',
     timestamp: new Date().toISOString(),
     firebase: 'enabled',
     environment: process.env.NODE_ENV || 'development',
-    baseUrl: process.env.BASE_URL || 'http://localhost:3003'
+    baseUrl: process.env.BASE_URL
   });
 });
 
-// Ruta de prueba para verificar archivos locales (legacy)
 app.get('/api/debug/files', (req, res) => {
   const fs = require('fs');
   const uploadsDir = path.join(__dirname, 'uploads/reportes');
@@ -95,7 +83,6 @@ app.get('/api/debug/files', (req, res) => {
   }
 });
 
-// 🔥 NUEVA RUTA DE PRUEBA FIREBASE
 app.get('/api/debug/firebase', (req, res) => {
   const { getBucket } = require('./config/firebase');
   
@@ -116,9 +103,6 @@ app.get('/api/debug/firebase', (req, res) => {
   }
 });
 
-// ===================================
-// 🔐 RUTAS DE AUTENTICACIÓN
-// ===================================
 try {
   const authRoutes = require('./routes/auth/authRoutes');
   app.use('/api/auth', authRoutes);
@@ -127,9 +111,6 @@ try {
   console.log('❌ Error en auth:', error.message);
 }
 
-// ===================================
-// 🔧 RUTAS DE ADMINISTRACIÓN
-// ===================================
 try {
   const administradoresRoutes = require('./routes/admin/administradoresRoutes');
   app.use('/api/admin/administradores', administradoresRoutes);
@@ -194,11 +175,6 @@ try {
   console.log('❌ Error en subcocode:', error.message);
 }
 
-// ===================================
-// 👥 RUTAS POR PANEL DE USUARIO
-// ===================================
-
-// PANEL LÍDER COCODE
 try {
   const liderReportesRoutes = require('./routes/lider/reportesRoutes');
   app.use('/api/lider/reportes', liderReportesRoutes);
@@ -207,7 +183,6 @@ try {
   console.log('❌ Error en líder reportes:', error.message);
 }
 
-// PANEL TÉCNICO
 try {
   const tecnicoReportesRoutes = require('./routes/tecnico/reportesRoutes');
   app.use('/api/tecnico/reportes', tecnicoReportesRoutes);
@@ -217,7 +192,6 @@ try {
   console.log('❌ Stack trace:', error.stack);
 }
 
-// PANEL CIUDADANO
 try {
   const ciudadanoReportesRoutes = require('./routes/ciudadano/reportesRoutes');
   app.use('/api/ciudadano/reportes', ciudadanoReportesRoutes);
@@ -227,9 +201,6 @@ try {
   console.log('❌ Stack trace:', error.stack);
 }
 
-// ===================================
-// 💬 SISTEMA DE COMENTARIOS
-// ===================================
 try {
   const comentariosRoutes = require('./routes/comentariosRoute');
   app.use('/api/reportes', comentariosRoutes);
@@ -238,9 +209,6 @@ try {
   console.log('❌ Error en comentarios:', error.message);
 }
 
-// ===================================
-// ⚠️ MANEJO DE ERRORES GLOBAL
-// ===================================
 app.use((error, req, res, next) => {
   console.error('💥 ERROR NO MANEJADO:', error);
   res.status(500).json({ 
@@ -249,10 +217,7 @@ app.use((error, req, res, next) => {
   });
 });
 
-// ===================================
-// 🚀 INICIAR SERVIDOR
-// ===================================
-const PORT = process.env.PORT || 3003;
+const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`\n${'='.repeat(60)}`);
@@ -263,9 +228,9 @@ app.listen(PORT, () => {
   console.log('🌐 ENDPOINTS DISPONIBLES:\n');
   
   console.log('🔍 PRUEBAS:');
-  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/test`);
-  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/debug/firebase`);
-  console.log(`   → ${process.env.BASE_URL || `http://localhost:${PORT}`}/api/debug/files\n`);
+  console.log(`   → ${process.env.BASE_URL}/api/test`);
+  console.log(`   → ${process.env.BASE_URL}/api/debug/firebase`);
+  console.log(`   → ${process.env.BASE_URL}/api/debug/files\n`);
   
   console.log('🔐 AUTENTICACIÓN:');
   console.log('   → POST   /api/auth/login');

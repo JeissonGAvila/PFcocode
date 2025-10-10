@@ -102,7 +102,7 @@ export const reportesService = {
       
       // Para archivos, no usar el apiService normal
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3003/api/reportes/${reporteId}/archivos`, {
+      const response = await fetch(`https://jason.hopitalbarillas.cloud/api/reportes/${reporteId}/archivos`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

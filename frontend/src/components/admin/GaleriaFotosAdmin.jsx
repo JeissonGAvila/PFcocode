@@ -65,7 +65,7 @@ const GaleriaFotosAdmin = ({ fotos = [], maxHeight = 200, titulo = "Fotos del Re
     
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
-      : 'http://localhost:3003';
+      : 'https://jason.hopitalbarillas.cloud';
     
     const ruta = foto.url_archivo.startsWith('/') 
       ? foto.url_archivo 
