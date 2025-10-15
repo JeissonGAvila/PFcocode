@@ -1,22 +1,27 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
 const { initializeFirebase } = require('./config/firebase');
 initializeFirebase();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
-  : [];
+const fallbackWhitelist = [
+  'https://jason.hopitalbarillas.cloud',
+  'http://jason.hopitalbarillas.cloud',
+  'http://localhost:5173'
+];
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : fallbackWhitelist;
 
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.warn(`⚠️ Origen bloqueado por CORS: ${origin}`);
@@ -43,7 +48,7 @@ console.log('📸 Ruta de uploads:', path.join(__dirname, 'uploads'));
 console.log('🔥 Firebase Storage configurado para nuevos archivos');
 
 app.get('/api/test', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Servidor funcionando correctamente con Firebase',
     timestamp: new Date().toISOString(),
     firebase: 'enabled',
@@ -55,7 +60,6 @@ app.get('/api/test', (req, res) => {
 app.get('/api/debug/files', (req, res) => {
   const fs = require('fs');
   const uploadsDir = path.join(__dirname, 'uploads/reportes');
-  
   try {
     if (!fs.existsSync(uploadsDir)) {
       return res.json({
@@ -65,7 +69,6 @@ app.get('/api/debug/files', (req, res) => {
         note: 'Los nuevos archivos se guardan en Firebase Storage'
       });
     }
-
     const files = fs.readdirSync(uploadsDir);
     res.json({
       success: true,
@@ -85,7 +88,6 @@ app.get('/api/debug/files', (req, res) => {
 
 app.get('/api/debug/firebase', (req, res) => {
   const { getBucket } = require('./config/firebase');
-  
   try {
     const bucket = getBucket();
     res.json({
@@ -211,7 +213,7 @@ try {
 
 app.use((error, req, res, next) => {
   console.error('💥 ERROR NO MANEJADO:', error);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Error interno del servidor',
     message: error.message
   });
@@ -224,20 +226,16 @@ app.listen(PORT, () => {
   console.log(`🚀 SERVIDOR COCODE FUNCIONANDO EN PUERTO ${PORT}`);
   console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
   console.log(`${'='.repeat(60)}\n`);
-  
   console.log('🌐 ENDPOINTS DISPONIBLES:\n');
-  
   console.log('🔍 PRUEBAS:');
   console.log(`   → ${process.env.BASE_URL}/api/test`);
   console.log(`   → ${process.env.BASE_URL}/api/debug/firebase`);
   console.log(`   → ${process.env.BASE_URL}/api/debug/files\n`);
-  
   console.log('🔐 AUTENTICACIÓN:');
   console.log('   → POST   /api/auth/login');
   console.log('   → POST   /api/auth/logout');
   console.log('   → GET    /api/auth/verify');
   console.log('   → GET    /api/auth/me\n');
-  
   console.log('🔧 ADMINISTRACIÓN:');
   console.log('   → GET    /api/admin/administradores');
   console.log('   → GET    /api/admin/tecnicos');
@@ -245,16 +243,13 @@ app.listen(PORT, () => {
   console.log('   → GET    /api/admin/lideres');
   console.log('   → GET    /api/admin/ciudadanos');
   console.log('   → GET    /api/admin/zonas\n');
-  
   console.log('👥 PANELES DE USUARIO:');
   console.log('   → /api/lider/reportes/*     ← Panel Líder COCODE');
   console.log('   → /api/tecnico/reportes/*   ← Panel Técnico');
   console.log('   → /api/ciudadano/reportes/* ← Panel Ciudadano + GPS\n');
-  
   console.log('💬 SISTEMA:');
   console.log('   → GET/POST /api/reportes/:id/comentarios');
   console.log('   → /uploads/*  ← Archivos estáticos (legacy)\n');
-  
   console.log(`${'='.repeat(60)}`);
   console.log('✅ SERVIDOR LISTO - 4 PANELES + FIREBASE + COMENTARIOS');
   console.log(`${'='.repeat(60)}\n`);
