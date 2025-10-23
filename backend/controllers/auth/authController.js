@@ -83,7 +83,8 @@ const login = async (req, res) => {
           validarCiudadanos: true,
           coordinarTecnicos: true,
           id_zona: usuario.id_zona,
-          id_cocode: usuario.id_cocode_principal
+          id_cocode: usuario.id_cocode_principal,
+          id_subcocode: usuario.id_subcocode
         };
       }
     }
@@ -112,7 +113,8 @@ const login = async (req, res) => {
           comentarReportes: true,
           actualizarPerfil: true,
           id_ciudadano: usuario.id,
-          id_zona: usuario.id_zona
+          id_zona: usuario.id_zona,
+          id_subcocode: usuario.id_subcocode
         };
       }
     }

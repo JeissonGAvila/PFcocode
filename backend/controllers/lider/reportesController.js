@@ -1,11 +1,18 @@
-// backend/controllers/lider/reportesController.js - MEJORADO CON FILTROS AVANZADOS
+// backend/controllers/lider/reportesController.js - ✅ CORREGIDO CON SECTORIZACIÓN
 const pool = require('../../models/db');
 
-// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su zona) - SIN CAMBIOS
+// 1. VER REPORTES PENDIENTES DE APROBACIÓN (Estado "Nuevo" de su SECTOR)
 const getReportesPendientesAprobacion = async (req, res) => {
   try {
     const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
+    const subcocodeId = req.user.permisos.id_subcocode; // ✅ CAMBIADO de id_zona
+
+    // ✅ Validar que el líder tenga un sector asignado
+    if (!subcocodeId) {
+      return res.status(400).json({ 
+        error: 'Líder sin sector asignado. Contacta al administrador.' 
+      });
+    }
 
     const query = `
       SELECT 
@@ -35,9 +42,10 @@ const getReportesPendientesAprobacion = async (req, res) => {
         -- Estado actual
         er.nombre as estado_actual,
         
-        -- Zona
+        -- Zona y Sector
         z.nombre as zona_nombre,
         z.numero_zona,
+        sc.nombre as sector_nombre,
         
         -- Fotos del reporte (ARRAY de fotos)
         (
@@ -71,8 +79,9 @@ const getReportesPendientesAprobacion = async (req, res) => {
       INNER JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
       INNER JOIN estados_reporte er ON r.id_estado = er.id
       INNER JOIN zonas z ON r.id_zona = z.id
+      LEFT JOIN subcocode sc ON r.id_subcocode = sc.id
       
-      WHERE r.id_zona = $1 
+      WHERE r.id_subcocode = $1  -- ✅ CAMBIADO: Filtra por SECTOR específico
         AND er.nombre = 'Nuevo'
         AND r.estado = TRUE
         
@@ -86,7 +95,7 @@ const getReportesPendientesAprobacion = async (req, res) => {
         r.fecha_reporte DESC
     `;
 
-    const result = await pool.query(query, [zonaId]);
+    const result = await pool.query(query, [subcocodeId]); // ✅ Usa subcocodeId
 
     // Procesar resultados para incluir información de ubicación
     const reportesProcesados = result.rows.map(reporte => ({
@@ -98,9 +107,10 @@ const getReportesPendientesAprobacion = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reportes pendientes de aprobación en zona ${zonaId}`,
+      message: `Reportes pendientes de aprobación en tu sector`,
       reportes: reportesProcesados,
-      total: result.rows.length
+      total: result.rows.length,
+      sector_id: subcocodeId // ✅ Info adicional
     });
 
   } catch (error) {
@@ -112,11 +122,18 @@ const getReportesPendientesAprobacion = async (req, res) => {
   }
 };
 
-// 2. VER REPORTES DE SU ZONA - ⭐ MEJORADO CON FILTROS AVANZADOS
+// 2. VER REPORTES DE SU SECTOR - ✅ MEJORADO CON FILTROS AVANZADOS
 const getReportesZona = async (req, res) => {
   try {
     const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
+    const subcocodeId = req.user.permisos.id_subcocode; // ✅ CAMBIADO de id_zona
+    
+    // ✅ Validar que el líder tenga un sector asignado
+    if (!subcocodeId) {
+      return res.status(400).json({ 
+        error: 'Líder sin sector asignado. Contacta al administrador.' 
+      });
+    }
     
     // ⭐ NUEVOS PARÁMETROS DE FILTROS
     const { 
@@ -127,8 +144,8 @@ const getReportesZona = async (req, res) => {
       limit = 20 
     } = req.query;
 
-    let whereClause = 'WHERE r.id_zona = $1 AND r.estado = TRUE';
-    let params = [zonaId];
+    let whereClause = 'WHERE r.id_subcocode = $1 AND r.estado = TRUE'; // ✅ CAMBIADO
+    let params = [subcocodeId]; // ✅ Usa subcocodeId
     let paramCount = 1;
 
     // ⭐ FILTRO POR ESTADO
@@ -188,8 +205,9 @@ const getReportesZona = async (req, res) => {
         ta.nombre as tecnico_nombre,
         ta.apellido as tecnico_apellido,
         
-        -- Zona
+        -- Zona y Sector
         z.nombre as zona_nombre,
+        sc.nombre as sector_nombre,
         
         -- Fotos del reporte
         (
@@ -232,6 +250,7 @@ const getReportesZona = async (req, res) => {
       INNER JOIN tipos_problema tp ON r.id_tipo_problema = tp.id
       INNER JOIN estados_reporte er ON r.id_estado = er.id
       INNER JOIN zonas z ON r.id_zona = z.id
+      LEFT JOIN subcocode sc ON r.id_subcocode = sc.id
       LEFT JOIN administradores ta ON r.id_administrador_asignado = ta.id
       
       ${whereClause}
@@ -285,7 +304,7 @@ const getReportesZona = async (req, res) => {
         estado: estado || 'todos',
         prioridad: prioridad || 'todas',
         busqueda: busqueda || '',
-        zona_id: zonaId
+        subcocode_id: subcocodeId
       },
       pagination: {
         page: parseInt(page),
@@ -296,35 +315,35 @@ const getReportesZona = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error al obtener reportes de zona:', error);
+    console.error('Error al obtener reportes de sector:', error);
     res.status(500).json({ 
-      error: 'Error al obtener reportes de la zona',
+      error: 'Error al obtener reportes del sector',
       details: error.message 
     });
   }
 };
 
-// 3. APROBAR REPORTE - SIN CAMBIOS
+// 3. APROBAR REPORTE
 const aprobarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
     const { comentario_lider } = req.body;
     const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
+    const subcocodeId = req.user.permisos.id_subcocode; // ✅ CAMBIADO
 
-    // Verificar que el reporte pertenezca a la zona del líder
+    // Verificar que el reporte pertenezca al sector del líder
     const verificarQuery = `
-      SELECT r.id, r.id_zona, er.nombre as estado_actual
+      SELECT r.id, r.id_subcocode, er.nombre as estado_actual
       FROM reportes r
       INNER JOIN estados_reporte er ON r.id_estado = er.id
-      WHERE r.id = $1 AND r.id_zona = $2 AND r.estado = TRUE
+      WHERE r.id = $1 AND r.id_subcocode = $2 AND r.estado = TRUE
     `;
     
-    const verificarResult = await pool.query(verificarQuery, [reporteId, zonaId]);
+    const verificarResult = await pool.query(verificarQuery, [reporteId, subcocodeId]);
     
     if (verificarResult.rows.length === 0) {
       return res.status(404).json({ 
-        error: 'Reporte no encontrado en tu zona' 
+        error: 'Reporte no encontrado en tu sector' 
       });
     }
     
@@ -417,13 +436,13 @@ const aprobarReporte = async (req, res) => {
   }
 };
 
-// 4. RECHAZAR REPORTE - SIN CAMBIOS
+// 4. RECHAZAR REPORTE
 const rechazarReporte = async (req, res) => {
   try {
     const { reporteId } = req.params;
     const { motivo_rechazo, comentario_lider } = req.body;
     const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
+    const subcocodeId = req.user.permisos.id_subcocode; // ✅ CAMBIADO
 
     if (!motivo_rechazo) {
       return res.status(400).json({ 
@@ -431,19 +450,19 @@ const rechazarReporte = async (req, res) => {
       });
     }
 
-    // Verificar que el reporte pertenezca a la zona del líder
+    // Verificar que el reporte pertenezca al sector del líder
     const verificarQuery = `
-      SELECT r.id, r.id_zona, er.nombre as estado_actual
+      SELECT r.id, r.id_subcocode, er.nombre as estado_actual
       FROM reportes r
       INNER JOIN estados_reporte er ON r.id_estado = er.id
-      WHERE r.id = $1 AND r.id_zona = $2 AND r.estado = TRUE
+      WHERE r.id = $1 AND r.id_subcocode = $2 AND r.estado = TRUE
     `;
     
-    const verificarResult = await pool.query(verificarQuery, [reporteId, zonaId]);
+    const verificarResult = await pool.query(verificarQuery, [reporteId, subcocodeId]);
     
     if (verificarResult.rows.length === 0) {
       return res.status(404).json({ 
-        error: 'Reporte no encontrado en tu zona' 
+        error: 'Reporte no encontrado en tu sector' 
       });
     }
 
@@ -537,27 +556,27 @@ const rechazarReporte = async (req, res) => {
   }
 };
 
-// 5. VALIDAR RESOLUCIÓN DE TÉCNICO - SIN CAMBIOS
+// 5. VALIDAR RESOLUCIÓN DE TÉCNICO
 const validarResolucion = async (req, res) => {
   try {
     const { reporteId } = req.params;
     const { aprobado, comentario_validacion } = req.body;
     const liderId = req.user.id;
-    const zonaId = req.user.permisos.id_zona;
+    const subcocodeId = req.user.permisos.id_subcocode; // ✅ CAMBIADO
 
     // Verificar que el reporte esté en estado "Resuelto"
     const verificarQuery = `
-      SELECT r.id, r.id_zona, er.nombre as estado_actual, r.numero_reporte
+      SELECT r.id, r.id_subcocode, er.nombre as estado_actual, r.numero_reporte
       FROM reportes r
       INNER JOIN estados_reporte er ON r.id_estado = er.id
-      WHERE r.id = $1 AND r.id_zona = $2 AND r.estado = TRUE
+      WHERE r.id = $1 AND r.id_subcocode = $2 AND r.estado = TRUE
     `;
     
-    const verificarResult = await pool.query(verificarQuery, [reporteId, zonaId]);
+    const verificarResult = await pool.query(verificarQuery, [reporteId, subcocodeId]);
     
     if (verificarResult.rows.length === 0) {
       return res.status(404).json({ 
-        error: 'Reporte no encontrado en tu zona' 
+        error: 'Reporte no encontrado en tu sector' 
       });
     }
 
